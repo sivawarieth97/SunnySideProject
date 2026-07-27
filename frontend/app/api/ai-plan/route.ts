@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { AIPlan, AIPlanWeek, AIPlanDay } from '@/types/aiPlan'
 
+// Vercel: allow up to 60s for this function — Gemini takes 15–30s to write a
+// full day-by-day plan, and the Hobby default timeout (~10s) would kill it.
+export const maxDuration = 60
+
 // This route lives entirely in the Next.js frontend — it never touches the
 // Scala backend. It does two things for AI Mode on the Life Goal Planner page:
 //  1. Runs a real Google web search for context on the stated goal (optional —

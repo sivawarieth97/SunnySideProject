@@ -1,0 +1,9 @@
+# Keep the Docker build context small — only build.sbt, project/ and src/
+# are actually copied into the image.
+target/
+frontend/
+.git/
+.idea/
+.bsp/
+*.md
+docker-compose.yml

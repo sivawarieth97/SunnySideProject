@@ -24,12 +24,14 @@ object Main extends ZIOAppDefault:
     yield ()
 
   val allRoutes = AuthRoutes.routes ++ GoalRoutes.routes
+  val port = sys.env.get("PORT").flatMap(_.toIntOption).getOrElse(8080)
+
 
   def run =
     runMigration.provide(Database.live) *>
       Server.serve(allRoutes)
         .provide(
-          Server.default,
+          Server.defaultWithPort(port),
           GoalRepository.live,
           UserRepository.live,
           AuthService.live,

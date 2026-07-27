@@ -172,7 +172,7 @@ object GoalRoutes {
           yield resp
           result.merge
       },
-
-
+      Method.GET / "health" -> handler { (_: Request) => Response.text("ok") }
+      
     )
 }

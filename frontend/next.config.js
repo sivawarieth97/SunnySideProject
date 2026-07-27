@@ -1,13 +1,19 @@
 /** @type {import('next').NextConfig} */
+
+// Where the Scala backend lives. Locally this falls back to localhost:8080;
+// in production (Vercel) set BACKEND_URL to the deployed backend, e.g.
+// https://sunnyside-api.onrender.com — no trailing slash.
+const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:8080'
+
 const nextConfig = {
-  // Proxy /api/* → backend at localhost:8080
-  // This avoids CORS issues in development.
-  // Frontend calls /api/goals → Next.js forwards to http://localhost:8080/goals
+  // Proxy /api/* → backend. The rewrite runs server-side on Vercel, so the
+  // browser only ever talks to the frontend's own domain — no CORS needed.
+  // Frontend calls /api/goals → Next.js forwards to ${BACKEND_URL}/goals
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8080/:path*',
+        destination: `${BACKEND_URL}/:path*`,
       },
     ]
   },
