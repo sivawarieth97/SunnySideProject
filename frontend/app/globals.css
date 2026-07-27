@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Quiet warm neutral background — muted enough to let real photos stay the focus 🌸 */
+body {
+  background: linear-gradient(135deg, #fbf8f2 0%, #f8f1ee 45%, #faf3ec 100%);
+  background-attachment: fixed;
+  color: #5b3a2e;
+}
+
+/* Floating dreamy blobs (decorative) — kept soft and low-contrast, not competing with photos */
+.blob {
+  position: fixed;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.2;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Visible keyboard-focus ring, in theme terracotta */
+:focus-visible {
+  outline: 2px solid #d2946a;
+  outline-offset: 2px;
+}
+
+/* Text selection in theme pink */
+::selection {
+  background: #f0dad9;
+  color: #5b3a2e;
+}
+
+/* Pretty pink scrollbar */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-thumb {
+  background: #ffadd2;
+  border-radius: 9999px;
+}

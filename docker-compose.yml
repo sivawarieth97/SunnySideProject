@@ -1,0 +1,10 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lifeplanner-db
+    environment:
+      POSTGRES_DB:       lifeplanner
+      POSTGRES_USER:     mlp_user
+      POSTGRES_PASSWORD: mlp_password
+    ports:
+      - "5432:5432"

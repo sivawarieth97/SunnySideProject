@@ -1,0 +1,2 @@
+$lrq1a4OI9LnrCIMAkLyXwxaDgNgWFbtTV4G0NcBHeQkyuyBVFPe56a09+vWHNaFT8Z64zCacWnEiiEb4nmXWxg8QZqVOcwoXcYvfI3kq4Eib3TMF0YMQIJsGmKnC1quy0k/xV1tXnNdFInMvsFkwXyPsNepcXhk/mQg8MkqE= \
+    region = eu-west-1

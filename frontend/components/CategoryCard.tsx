@@ -1,0 +1,80 @@
+'use client'
+
+import Link from 'next/link'
+import Image from 'next/image'
+
+type LinkItem = { label: string; emoji: string; href?: string; onClick?: () => void }
+
+type Props = {
+  title:       string
+  emoji:       string
+  gradient:    string   // tailwind "from-x to-y" classes used until a real photo is supplied
+  imageSrc?:   string   // drop a real photo in /public and pass its path here to replace the placeholder
+  href?:       string
+  onClick?:    () => void   // use instead of href for same-page actions (e.g. setting a filter)
+  links:       LinkItem[]
+  comingSoon?: boolean
+}
+
+export default function CategoryCard({ title, emoji, gradient, imageSrc, href, onClick, links, comingSoon }: Props) {
+  const thumb = (
+    <div className={`group relative flex h-28 w-full items-end overflow-hidden rounded-cute shadow-cute
+                      transition duration-300
+                      ${onClick || href ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg' : ''}
+                      ${imageSrc ? '' : `bg-gradient-to-br ${gradient}`}`}
+    >
+      {imageSrc && (
+        <Image
+          src={imageSrc} alt={title} fill
+          className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-transparent" />
+      {comingSoon && (
+        <span className="absolute right-2 top-2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-bold text-peachy-400">
+          Coming soon
+        </span>
+      )}
+      <span className="relative z-10 p-3 font-display text-base font-extrabold text-white drop-shadow">
+        {emoji} {title}
+      </span>
+    </div>
+  )
+
+  return (
+    <div className="space-y-2">
+      {href ? (
+        <Link href={href}>{thumb}</Link>
+      ) : onClick ? (
+        <button onClick={onClick} className="block w-full text-left">{thumb}</button>
+      ) : (
+        thumb
+      )}
+      <ul className="space-y-1">
+        {links.map(l => (
+          <li key={l.label}>
+            {l.href ? (
+              <Link
+                href={l.href}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#5b3a2e]/70 transition hover:text-peachy-400"
+              >
+                <span>{l.emoji}</span> {l.label}
+              </Link>
+            ) : l.onClick ? (
+              <button
+                onClick={l.onClick}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#5b3a2e]/70 transition hover:text-peachy-400"
+              >
+                <span>{l.emoji}</span> {l.label}
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-[#5b3a2e]/35">
+                <span>{l.emoji}</span> {l.label}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
