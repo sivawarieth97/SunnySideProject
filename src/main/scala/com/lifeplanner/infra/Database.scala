@@ -18,11 +18,14 @@ object Database {
       db       <- System.env("DB_NAME").map(_.getOrElse("lifeplanner")).orDie
       user     <- System.env("DB_USER").map(_.getOrElse("mlp_user")).orDie
       password <- System.env("DB_PASSWORD").map(_.getOrElse("mlp_password")).orDie
+      sslmode  <- System.env("DB_SSLMODE").map(_.getOrElse("disable")).orDie
     yield {
       val cfg = HikariConfig()
-      cfg.setJdbcUrl(s"jdbc:postgresql://$host:$port/$db")
+      cfg.setJdbcUrl(s"jdbc:postgresql://$host:$port/$db?sslmode=$sslmode")
       cfg.setUsername(user)
       cfg.setPassword(password)
+      cfg.setMaximumPoolSize(4)
+      cfg.setMaxLifetime(240000)
       cfg
     }
 
