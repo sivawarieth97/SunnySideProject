@@ -110,8 +110,10 @@ export default function PlannerPage() {
   const [quickYearly, setQuickYearly]       = useState<string[]>([])
 
   useEffect(() => {
-    if (!getToken()) router.replace('/login')
-  }, [router])
+    if (loaded && loadError === 'UNAUTHORIZED') {
+      router.replace('/login')
+    }
+  }, [loaded, loadError, router])
 
   // Talks to the API for creating a goal and returns the created goal (or null on
   // failure) without refreshing the list — used when a batch of goals needs to be
