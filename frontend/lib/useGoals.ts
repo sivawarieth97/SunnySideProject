@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useSyncExternalStore } from 'react'
-import { getToken, authHeaders } from './auth'
+import { authHeaders } from './auth'
 import { GOALS_CHANGED_EVENT } from './goalEvents'
 import type { Goal } from '@/types'
 
@@ -26,13 +26,19 @@ function emit() {
 }
 
 export async function refreshGoals(): Promise<void> {
-  if (typeof window === 'undefined' || !getToken()) return
+  if (typeof window === 'undefined') return
   if (!inflight) {
     inflight = (async () => {
       try {
         const res = await fetch('/api/goals', { headers: authHeaders() })
         if (!res.ok) {
-          state = { ...state, loaded: true, error: res.status === 401 ? '' : 'Could not load goals.' }
+          state = {
+            ...state,
+            loaded: true,
+            error: res.status === 401
+                ? 'UNAUTHORIZED'
+                : 'Could not load goals.',
+          }
           return
         }
         const data = await res.json()

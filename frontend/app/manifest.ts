@@ -11,20 +11,20 @@ export default function manifest(): MetadataRoute.Manifest {
         theme_color: '#f5c95d',
         icons: [
             {
-                src: '/icons/fuji-192.png',
+                src: '/icons/sunnyside-192.png',
                 sizes: '192x192',
                 type: 'image/png',
             },
             {
-                src: '/icons/fuji-512.png',
+                src: '/icons/sunnyside-512.png',
                 sizes: '512x512',
                 type: 'image/png',
             },
             {
-                src: '/icons/fuji-512.png',
+                src: '/icons/sunnyside-512.png',
                 sizes: '512x512',
                 type: 'image/png',
-                purpose: 'maskable',
+                purpose: 'any',
             },
         ],
     }

@@ -46,7 +46,7 @@ class AuthService (userRepo: UserRepository) :
       token = JWT.create()
         .withSubject(user.id.toString())
         .withClaim("email", user.email)
-        .withExpiresAt(Date.from(Instant.now().plusSeconds(7 * 24 * 60 * 60)))
+        .withExpiresAt(Date.from(Instant.now().plusSeconds(AuthService.SessionTtlSeconds)))
         .sign(algorithm)
 
     yield AuthResponse(token)
@@ -54,6 +54,9 @@ class AuthService (userRepo: UserRepository) :
 
 
 object AuthService:
+  val SessionCookieName = "lp_session"
+  val SessionTtlSeconds = 30L * 24 * 60 * 60
+  
   val live : ZLayer[UserRepository, Nothing, AuthService] = ZLayer.fromFunction((repo: UserRepository) => new AuthService(repo))
 
   def register(req: RegisterUser): ZIO[AuthService, Throwable, User] =

@@ -21,13 +21,18 @@ export default function HeaderBanner() {
   const [hasToken, setHasToken] = useState(false)
   useEffect(() => { setHasToken(!!getToken()) }, [pathname])
 
-  function handleLogout() {
-    clearToken()
-    setHasToken(false)
-    router.replace('/login')
-  }
+    async function handleLogout() {
+        await fetch('/api/auth/logout', {
+            method: 'POST',
+        })
 
-  const logoutButton = hasToken && !isAuthPage && (
+        clearToken()
+        setHasToken(false)
+        router.replace('/login')
+        router.refresh()
+    }
+
+  const logoutButton = !isAuthPage && (
     <button
       onClick={handleLogout}
       className="rounded-full border border-white/50 bg-black/25 px-3 py-1 text-xs font-bold

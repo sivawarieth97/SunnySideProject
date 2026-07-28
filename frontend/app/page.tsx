@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getToken, authHeaders } from '@/lib/auth'
+import { authHeaders } from '@/lib/auth'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
 import { useGoals, mutateGoals } from '@/lib/useGoals'
 import { periodForDate, isPast } from '@/lib/period'
@@ -29,8 +29,10 @@ export default function Home() {
   const [busyToday, setBusyToday]       = useState<string | null>(null)
 
   useEffect(() => {
-    if (!getToken()) router.replace('/login')
-  }, [router])
+    if (loaded && error === 'UNAUTHORIZED') {
+      router.replace('/login')
+    }
+  }, [loaded, error, router])
 
   // Grace-period delete: the card disappears immediately (filtered from the
   // visible list), but the actual DELETE only fires after 5s — Undo just
@@ -390,7 +392,7 @@ export default function Home() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="rounded-cute border border-blossom-100 bg-white/70 p-5 shadow-cute backdrop-blur">
+            <div className="rounded-cute border border-blossom-100 bg-white/70 p-4 sm:p-5 shadow-cute backdrop-blur">
               <h3 className="mb-3 font-display text-base font-bold text-peachy-400">New Goal 🌟</h3>
               <CreateGoalForm onCreated={handleCreated} />
             </div>

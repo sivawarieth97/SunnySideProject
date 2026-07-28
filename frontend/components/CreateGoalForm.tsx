@@ -119,7 +119,7 @@ export default function CreateGoalForm({ onCreated }: Props) {
         />
       </div>
 
-      <div className="flex gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex-1">
           <label className={labelClass}>Level</label>
           <select value={level} onChange={e => setLevel(e.target.value)} className={inputClass}>
@@ -135,7 +135,7 @@ export default function CreateGoalForm({ onCreated }: Props) {
         </div>
       </div>
 
-      <div className="flex gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex-1">
           <label className={labelClass}>{repeats ? 'Starts on' : 'When?'}</label>
           <input

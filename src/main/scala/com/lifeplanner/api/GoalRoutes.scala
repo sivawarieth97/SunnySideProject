@@ -15,19 +15,28 @@ object GoalRoutes {
 
   private val validStatuses = Set("PENDING", "COMPLETED", "ROLLED_OVER")
 
-  private def extractuserId(req: Request) : ZIO[AuthService, Throwable, String] =
-    req.headers.get("Authorization") match {
-      case None => ZIO.fail(new Exception("Missing token"))
-      case Some(header) =>
-        val token = header.stripPrefix("Bearer ")
-        AuthService.verifyToken(token)
-    }
+  private def extractUserId(req: Request): ZIO[AuthService, Throwable, String] = {
+    val bearerToken = req.headers
+          .get("Authorization")
+          .filter(_.startsWith("Bearer "))
+          .map(_.stripPrefix("Bearer ").trim)
+          .filter(_.nonEmpty)
+
+    val cookieToken = req.cookie(AuthService.SessionCookieName)
+          .map(_.content)
+          .filter(_.nonEmpty)
+
+    ZIO
+      .fromOption(bearerToken.orElse(cookieToken))
+      .orElseFail(new Exception("Missing token"))
+      .flatMap(AuthService.verifyToken)
+  }
 
   val routes : Routes[GoalRepository & AuthService, Nothing] =
     Routes (
       Method.POST / "goals" / "rollover" -> handler { (req: Request) =>
         val result = for
-          userId <- extractuserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
+          userId <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
           userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
           count <- GoalRepository.rolloverPastGoals(userUUID).mapError(e => Response.json(s"""{"error":"${e.getMessage}"}""").status(Status.InternalServerError))
         yield Response.json(s"""{"rolledOver": $count}""")
@@ -37,7 +46,7 @@ object GoalRoutes {
       Method.POST / "goals" -> handler { (req: Request) =>
 
         for
-          userId <- extractuserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
+          userId <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
           userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
           body <- req.body.asString.orDie
           request = body.fromJson[CreateGoalRequest]
@@ -61,7 +70,7 @@ object GoalRoutes {
 
       Method.GET / "goals" / string("id") -> handler { (idStr: String, req : Request) =>
         val result = for
-          userId <- extractuserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
+          userId <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
           userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
           id <- ZIO.attempt(UUID.fromString(idStr))
             .orElseFail(Response.text("Invalid UUID").status(Status.BadRequest))
@@ -80,7 +89,7 @@ object GoalRoutes {
 
       Method.GET / "goals" -> handler { (req: Request) =>
         val result = for
-          userId <- extractuserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
+          userId <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
           userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
           goals <- GoalRepository.findAll(userUUID).orDie
         yield Response.json(s"""{"goals":${goals.toJson}}""")
@@ -90,7 +99,7 @@ object GoalRoutes {
 
       Method.PUT / "goals" / string("id") -> handler { (idStr: String, req: Request) =>
         val result = for
-          userId <- extractuserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
+          userId <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
           userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
           body <- req.body.asString.orDie
           request = body.fromJson[UpdateGoalRequest]
@@ -120,7 +129,7 @@ object GoalRoutes {
       Method.DELETE / "goals" / string("id") -> handler { (idStr: String, req: Request) =>
         val result = 
           for
-            userId <- extractuserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
+            userId <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
             userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
             id <- ZIO.attempt(UUID.fromString(idStr)).orElseFail(Response.json("""{"error":"invalid UUID"}""").status(Status.BadRequest))
   
@@ -136,7 +145,7 @@ object GoalRoutes {
 
       Method.POST / "goals" / string("id") / "completions" -> handler { (idStr: String, req: Request) =>
         val result = for
-          userId   <- extractuserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
+          userId   <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
           userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
           id       <- ZIO.attempt(UUID.fromString(idStr))
             .orElseFail(Response.json("""{"error":"invalid UUID"}""").status(Status.BadRequest))
@@ -162,7 +171,7 @@ object GoalRoutes {
       Method.DELETE / "goals" / string("id") / "completions" / string("period") -> handler {
         (idStr: String, period: String, req: Request) =>
           val result = for
-            userId   <- extractuserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
+            userId   <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
             userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
             id       <- ZIO.attempt(UUID.fromString(idStr))
               .orElseFail(Response.json("""{"error":"invalid UUID"}""").status(Status.BadRequest))

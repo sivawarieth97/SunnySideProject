@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { getToken, authHeaders } from '@/lib/auth'
+import { authHeaders } from '@/lib/auth'
 import { periodForDate } from '@/lib/period'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
 import { useGoals, mutateGoals } from '@/lib/useGoals'
@@ -49,7 +49,7 @@ export default function GoalCalendar() {
 
   const hidden = pathname === '/login' || pathname === '/register'
 
-  if (hidden || !loaded || !getToken()) return null
+  if (hidden || !loaded) return null
 
   const year = monthStart.getFullYear()
   const month = monthStart.getMonth()
