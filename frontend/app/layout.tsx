@@ -26,7 +26,15 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
+      <html lang="en" className={`${display.variable} ${body.variable}`}>
+      <head>
+        <link
+            rel="apple-touch-icon"
+            sizes="180x180"
+            href="/apple-touch-icon.png?v=3"
+        />
+      </head>
+      
       <body className="min-h-screen font-body">
         {/* dreamy floating background blobs */}
         <div className="blob -left-20 -top-16 h-72 w-72 bg-sunny-300" />
