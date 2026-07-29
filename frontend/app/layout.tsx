@@ -41,11 +41,11 @@ export default function RootLayout({
         <div className="blob -right-16 top-40 h-80 w-80 bg-blossom-200" />
         <div className="blob -bottom-20 left-1/3 h-72 w-72 bg-peachy-200" />
 
-        <header className="relative z-10 mx-auto max-w-2xl px-6 md:max-w-3xl lg:max-w-4xl xl:max-w-5xl lg:px-10 pt-5">
+        <header className="relative z-10 mx-auto max-w-2xl px-3 pt-3 sm:px-6 sm:pt-5 md:max-w-3xl lg:max-w-4xl lg:px-10 xl:max-w-5xl">
           <HeaderBanner />
         </header>
 
-        <main className="relative z-10 mx-auto max-w-2xl px-6 md:max-w-4xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[96rem] lg:px-10 pb-16 mt-6">
+        <main className="relative z-10 mx-auto mt-4 max-w-2xl px-3 pb-16 sm:mt-6 sm:px-6 md:max-w-4xl lg:max-w-6xl lg:px-10 xl:max-w-7xl 2xl:max-w-[96rem]">
           {/* On large screens the calendar is the literal "other half" — a
               sticky right column beside the page content. Stacked below on mobile. */}
           <div className="lg:flex lg:items-start lg:gap-6">

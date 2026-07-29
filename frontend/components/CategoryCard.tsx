@@ -18,7 +18,8 @@ type Props = {
 
 export default function CategoryCard({ title, emoji, gradient, imageSrc, href, onClick, links, comingSoon }: Props) {
   const thumb = (
-    <div className={`group relative flex h-28 w-full items-end overflow-hidden rounded-cute shadow-cute
+    <div className={`group relative flex h-20 w-full items-end overflow-hidden rounded-2xl shadow-cute
+                      sm:h-28 sm:rounded-cute
                       transition duration-300
                       ${onClick || href ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg' : ''}
                       ${imageSrc ? '' : `bg-gradient-to-br ${gradient}`}`}
@@ -35,14 +36,14 @@ export default function CategoryCard({ title, emoji, gradient, imageSrc, href, o
           Coming soon
         </span>
       )}
-      <span className="relative z-10 p-3 font-display text-base font-extrabold text-white drop-shadow">
+      <span className="relative z-10 p-2 font-display text-sm font-extrabold text-white drop-shadow sm:p-3 sm:text-base">
         {emoji} {title}
       </span>
     </div>
   )
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5 sm:space-y-2">
       {href ? (
         <Link href={href}>{thumb}</Link>
       ) : onClick ? (
@@ -56,19 +57,22 @@ export default function CategoryCard({ title, emoji, gradient, imageSrc, href, o
             {l.href ? (
               <Link
                 href={l.href}
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#5b3a2e]/70 transition hover:text-peachy-400"
+                className="flex items-center gap-1 text-[11px] font-semibold text-[#5b3a2e]/70
+                           transition hover:text-peachy-400 sm:gap-1.5 sm:text-xs"
               >
                 <span>{l.emoji}</span> {l.label}
               </Link>
             ) : l.onClick ? (
               <button
                 onClick={l.onClick}
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#5b3a2e]/70 transition hover:text-peachy-400"
+                className="flex items-center gap-1 text-[11px] font-semibold text-[#5b3a2e]/70
+                           transition hover:text-peachy-400 sm:gap-1.5 sm:text-xs"
               >
                 <span>{l.emoji}</span> {l.label}
               </button>
             ) : (
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-[#5b3a2e]/35">
+              <span className="flex items-center gap-1 text-[11px] font-semibold text-[#5b3a2e]/35
+                               sm:gap-1.5 sm:text-xs">
                 <span>{l.emoji}</span> {l.label}
               </span>
             )}

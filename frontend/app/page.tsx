@@ -107,6 +107,39 @@ export default function Home() {
     mutateGoals(prev => prev.map(g => g.id === updated.id ? updated : g))
   }
 
+  async function updateCurrentItem(
+    goal: Goal,
+    changes: { title: string; description: string | null },
+  ) {
+    const response = await fetch(`/api/goals/${goal.id}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        title: changes.title,
+        description: changes.description,
+        level: goal.level,
+        priority: goal.priority,
+      }),
+    })
+
+    if (response.status === 401) {
+      router.replace('/login')
+      throw new Error('Your session expired. Please sign in again.')
+    }
+
+    const text = await response.text()
+    if (!response.ok) {
+      let message = 'Could not save changes'
+      try {
+        message = JSON.parse(text).error ?? message
+      } catch { /* keep the friendly fallback for non-JSON responses */ }
+      throw new Error(message)
+    }
+
+    handleUpdated(JSON.parse(text))
+    notifyGoalsChanged()
+  }
+
   async function handleRollover() {
     setRollingOver(true)
     setRolloverMsg('')
@@ -236,26 +269,15 @@ export default function Home() {
     <div className="flex flex-col gap-6 lg:flex-row">
 
       {/* Side panel */}
-      <aside className="flex shrink-0 flex-row gap-2 lg:sticky lg:top-4 lg:w-40 lg:self-start lg:flex-col">
+      <aside className="hidden shrink-0 lg:sticky lg:top-4 lg:flex lg:w-40 lg:self-start lg:flex-col">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowForm(true)}
-          className="hidden w-full rounded-full bg-gradient-to-r from-peachy-300 to-blossom-300
-                     px-4 py-2 font-display text-sm font-bold text-white shadow-cute lg:block"
+          className="w-full rounded-full bg-gradient-to-r from-peachy-300 to-blossom-300
+                     px-4 py-2 font-display text-sm font-bold text-white shadow-cute"
         >
           ✨ New Goal
-        </motion.button>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={handleRollover}
-          disabled={rollingOver}
-          title="Move unfinished past goals into the current period"
-          className="w-full rounded-full border border-sunny-300 bg-sunny-50 px-4 py-2
-                     text-sm font-bold text-peachy-400 transition hover:bg-sunny-100 disabled:opacity-40"
-        >
-          {rollingOver ? '↻ Rolling...' : '↻ Rollover'}
         </motion.button>
       </aside>
 
@@ -320,6 +342,7 @@ export default function Home() {
                 busyId={busyCurrent}
                 isDone={isDoneForPeriod}
                 onToggle={toggleCurrentItem}
+                onUpdate={updateCurrentItem}
               />
             ))}
           </div>
@@ -327,7 +350,7 @@ export default function Home() {
       )}
 
       {/* Hub — jump straight to a level, or open the full breakdown in the Life Planner */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-6">
         <CategoryCard
           title="Daily" emoji="☀️" gradient="from-sunny-200 to-sunny-300"
           imageSrc="/category-daily.jpg"
