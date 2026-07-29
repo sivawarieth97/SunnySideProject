@@ -233,16 +233,16 @@ export default function Home() {
     })
 
   return (
-    <div className="flex flex-col gap-6 sm:flex-row">
+    <div className="flex flex-col gap-6 lg:flex-row">
 
       {/* Side panel */}
-      <aside className="flex shrink-0 flex-row gap-2 sm:sticky sm:top-4 sm:w-40 sm:self-start sm:flex-col">
+      <aside className="flex shrink-0 flex-row gap-2 lg:sticky lg:top-4 lg:w-40 lg:self-start lg:flex-col">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowForm(true)}
           className="hidden w-full rounded-full bg-gradient-to-r from-peachy-300 to-blossom-300
-                     px-4 py-2 font-display text-sm font-bold text-white shadow-cute sm:block"
+                     px-4 py-2 font-display text-sm font-bold text-white shadow-cute lg:block"
         >
           ✨ New Goal
         </motion.button>
@@ -502,7 +502,7 @@ export default function Home() {
             onClick={() => setShowForm(true)}
             className="fixed right-4 z-40 rounded-full bg-gradient-to-r
                        from-peachy-300 to-blossom-300 px-5 py-3 font-display
-                       text-sm font-bold text-white shadow-cute sm:hidden
+                       text-sm font-bold text-white shadow-cute lg:hidden
                        bottom-[calc(env(safe-area-inset-bottom)+1rem)]"
           >
             ＋ New Goal
