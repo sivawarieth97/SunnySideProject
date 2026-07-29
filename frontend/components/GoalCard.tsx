@@ -1,24 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import type { Goal } from '@/app/page'
 import type { GoalLevel } from '@/types'
 import { authHeaders } from '@/lib/auth'
-import { currentPeriod, dateInputForPeriod, periodForDate } from '@/lib/period'
+import { currentPeriod, dateInputForPeriod, friendlyPeriod, periodForDate } from '@/lib/period'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
 import { timeAgo } from '@/lib/format'
 import { inputClass } from '@/lib/styles'
 
 type Props = {
   goal:      Goal
+  allGoals: Goal[]
+  editRequested?: boolean
+  onEditRequestHandled?: () => void
   onUpdated: (goal: Goal) => void
   // Delete is delegated to the parent so it can offer a grace-period undo —
   // the card itself never talks to the DELETE endpoint.
   onRequestDelete: (goal: Goal) => void
 }
 
-const LEVELS     = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']
+const LEVELS: GoalLevel[] = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']
+const HIERARCHY_ORDER: GoalLevel[] = ['YEARLY', 'QUARTERLY', 'MONTHLY', 'WEEKLY', 'DAILY']
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH']
 
 const priorityColors: Record<string, string> = {
@@ -37,12 +41,20 @@ const levelColors: Record<string, string> = {
   YEARLY:    'bg-blossom-100 text-blossom-400',
 }
 
-export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
+export default function GoalCard({
+  goal,
+  allGoals,
+  editRequested = false,
+  onEditRequestHandled,
+  onUpdated,
+  onRequestDelete,
+}: Props) {
   const [editing, setEditing]         = useState(false)
   const [title, setTitle]             = useState(goal.title)
   const [description, setDescription] = useState(goal.description ?? '')
   const [level, setLevel]             = useState(goal.level)
   const [priority, setPriority]       = useState(goal.priority)
+  const [parentGoalId, setParentGoalId] = useState(goal.parentGoalId ?? '')
   const [repeats, setRepeats]         = useState(goal.isRecurring)
   const [repeatUntil, setRepeatUntil] = useState(
     dateInputForPeriod(goal.recurrenceEnd, goal.level as GoalLevel)
@@ -56,6 +68,7 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
     setDescription(goal.description ?? '')
     setLevel(goal.level)
     setPriority(goal.priority)
+    setParentGoalId(goal.parentGoalId ?? '')
     setRepeats(goal.isRecurring)
     setRepeatUntil(dateInputForPeriod(goal.recurrenceEnd, goal.level as GoalLevel))
     setError('')
@@ -64,6 +77,37 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
   function startEditing() {
     resetDraft()
     setEditing(true)
+  }
+
+  useEffect(() => {
+    if (!editRequested) return
+    startEditing()
+    onEditRequestHandled?.()
+    // This effect intentionally responds only to a new request from the compact
+    // current-focus list; draft resets are handled by startEditing().
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editRequested])
+
+  const levelIndex = HIERARCHY_ORDER.indexOf(level as GoalLevel)
+  const parentCandidates = allGoals
+    .filter(candidate =>
+      candidate.id !== goal.id &&
+      HIERARCHY_ORDER.indexOf(candidate.level as GoalLevel) < levelIndex
+    )
+    .sort((a, b) => {
+      const levelDifference =
+        HIERARCHY_ORDER.indexOf(b.level as GoalLevel) -
+        HIERARCHY_ORDER.indexOf(a.level as GoalLevel)
+      return levelDifference || a.title.localeCompare(b.title)
+    })
+
+  function handleLevelChange(nextLevel: GoalLevel) {
+    setLevel(nextLevel)
+    const selectedParent = allGoals.find(candidate => candidate.id === parentGoalId)
+    const parentIsStillBroader = selectedParent &&
+      HIERARCHY_ORDER.indexOf(selectedParent.level as GoalLevel) <
+      HIERARCHY_ORDER.indexOf(nextLevel)
+    if (!parentIsStillBroader) setParentGoalId('')
   }
 
   async function handleUpdate(e: React.FormEvent) {
@@ -82,6 +126,7 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
           description: description.trim() || null,
           level,
           priority,
+          parentGoalId: parentGoalId || null,
           isRecurring: repeats,
           recurrenceEnd: repeats && repeatUntil
             ? periodForDate(level as GoalLevel, new Date(ry, rm - 1, rd))
@@ -90,8 +135,13 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
       })
       const text = await res.text()
       if (res.ok) {
-        onUpdated(JSON.parse(text))
+        const updated = JSON.parse(text) as Goal
+        onUpdated(updated)
         notifyGoalsChanged()
+        if ((updated.parentGoalId ?? '') !== parentGoalId) {
+          setError('Other changes were saved, but parent editing still needs backend support.')
+          return
+        }
         setEditing(false)
       } else {
         try { setError(JSON.parse(text).error) }
@@ -191,7 +241,11 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
         <div className="flex gap-3">
           <div className="flex-1">
             <label className="mb-1 block text-xs font-bold text-blossom-300">Level</label>
-            <select value={level} onChange={e => setLevel(e.target.value)} className={inputClass}>
+            <select
+              value={level}
+              onChange={e => handleLevelChange(e.target.value as GoalLevel)}
+              className={inputClass}
+            >
               {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
@@ -201,6 +255,33 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
               {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-bold text-blossom-300">
+            Parent goal <span className="text-peachy-200">(optional)</span>
+          </label>
+          <select
+            value={parentGoalId}
+            onChange={e => setParentGoalId(e.target.value)}
+            disabled={parentCandidates.length === 0}
+            className={inputClass}
+          >
+            <option value="">
+              {level === 'YEARLY'
+                ? 'No parent — yearly goals are top-level'
+                : parentCandidates.length === 0
+                  ? 'No broader goals available'
+                  : 'No parent — keep this goal top-level'}
+            </option>
+            {parentCandidates.map(candidate => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.level} · {candidate.title}
+                {candidate.period
+                  ? ` · ${friendlyPeriod(candidate.period, candidate.level as GoalLevel)}`
+                  : ''}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex gap-3">
           <div className="flex-1">

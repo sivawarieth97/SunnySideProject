@@ -15,10 +15,7 @@ type Props = {
   busyId: string | null
   isDone: (goal: Goal, period: string) => boolean
   onToggle: (goal: Goal, period: string) => void
-  onUpdate: (
-    goal: Goal,
-    changes: { title: string; description: string | null },
-  ) => Promise<void>
+  onEdit: (goal: Goal) => void
 }
 
 const levelStyles: Record<GoalLevel, {
@@ -60,7 +57,7 @@ type CurrentGoalRowProps = {
   done: boolean
   rowStyle: string
   onToggle: (goal: Goal, period: string) => void
-  onUpdate: Props['onUpdate']
+  onEdit: Props['onEdit']
 }
 
 function CurrentGoalRow({
@@ -70,49 +67,9 @@ function CurrentGoalRow({
   done,
   rowStyle,
   onToggle,
-  onUpdate,
+  onEdit,
 }: CurrentGoalRowProps) {
   const [showDescription, setShowDescription] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [title, setTitle] = useState(goal.title)
-  const [description, setDescription] = useState(goal.description ?? '')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-
-  function beginEditing() {
-    setTitle(goal.title)
-    setDescription(goal.description ?? '')
-    setError('')
-    setShowDescription(true)
-    setEditing(true)
-  }
-
-  function cancelEditing() {
-    setTitle(goal.title)
-    setDescription(goal.description ?? '')
-    setError('')
-    setEditing(false)
-  }
-
-  async function saveChanges(event: React.FormEvent) {
-    event.preventDefault()
-    if (!title.trim()) return
-
-    setSaving(true)
-    setError('')
-    try {
-      await onUpdate(goal, {
-        title: title.trim(),
-        description: description.trim() || null,
-      })
-      setEditing(false)
-      setShowDescription(true)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not save changes')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <li
@@ -155,73 +112,21 @@ function CurrentGoalRow({
         </button>
       </div>
 
-      {showDescription && !editing && (
+      {showDescription && (
         <div className="ml-7 mt-2 border-t border-white/70 pt-2">
           <p className="whitespace-pre-wrap text-xs font-semibold leading-relaxed text-[#5b3a2e]/65">
             {goal.description || 'No description yet.'}
           </p>
           <button
             type="button"
-            onClick={beginEditing}
+            onClick={() => onEdit(goal)}
             className="mt-2 rounded-full border border-peachy-100 bg-white/70 px-3 py-1
                        text-xs font-bold text-peachy-400 transition hover:border-peachy-200
                        hover:bg-white active:scale-95"
           >
-            ✎ {goal.description ? 'Edit task' : 'Add details'}
+            ✎ Edit full goal
           </button>
         </div>
-      )}
-
-      {editing && (
-        <form
-          onSubmit={saveChanges}
-          onKeyDown={event => {
-            if (event.key === 'Escape') cancelEditing()
-          }}
-          className="ml-7 mt-2 space-y-2 border-t border-white/70 pt-2"
-        >
-          <label className="block">
-            <span className="sr-only">Task title</span>
-            <input
-              value={title}
-              onChange={event => setTitle(event.target.value)}
-              required
-              className="w-full rounded-xl border border-sunny-200 bg-white/80 px-3 py-1.5
-                         text-sm font-semibold text-[#5b3a2e] outline-none transition
-                         focus:border-peachy-300"
-            />
-          </label>
-          <label className="block">
-            <span className="sr-only">Task description</span>
-            <textarea
-              value={description}
-              onChange={event => setDescription(event.target.value)}
-              rows={2}
-              placeholder="Description (optional)"
-              className="w-full resize-none rounded-xl border border-sunny-200 bg-white/80 px-3 py-1.5
-                         text-sm font-semibold text-[#5b3a2e] outline-none transition
-                         focus:border-peachy-300"
-            />
-          </label>
-          {error && <p className="text-xs font-bold text-blossom-400">{error}</p>}
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              disabled={saving || !title.trim()}
-              className="rounded-full bg-gradient-to-r from-peachy-300 to-blossom-300 px-3 py-1
-                         text-xs font-bold text-white disabled:opacity-40"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-            <button
-              type="button"
-              onClick={cancelEditing}
-              className="px-2 py-1 text-xs font-bold text-[#5b3a2e]/50 hover:text-[#5b3a2e]/75"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
       )}
     </li>
   )
@@ -237,7 +142,7 @@ export default function CurrentPeriodList({
   busyId,
   isDone,
   onToggle,
-  onUpdate,
+  onEdit,
 }: Props) {
   const styles = levelStyles[level]
   const completed = items.filter(goal => isDone(goal, period)).length
@@ -307,7 +212,7 @@ export default function CurrentPeriodList({
                   done={isDone(goal, period)}
                   rowStyle={styles.row}
                   onToggle={onToggle}
-                  onUpdate={onUpdate}
+                  onEdit={onEdit}
                 />
               ))}
             </ul>

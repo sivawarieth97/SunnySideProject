@@ -42,6 +42,7 @@ export default function Home() {
   const [rolloverMsg, setRolloverMsg]   = useState('')
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const [busyCurrent, setBusyCurrent]   = useState<string | null>(null)
+  const [editGoalId, setEditGoalId]     = useState<string | null>(null)
   const [showFloatingNewGoal, setShowFloatingNewGoal] = useState(false)
   const currentFocusActionsRef = useRef<HTMLDivElement | null>(null)
 
@@ -110,38 +111,21 @@ export default function Home() {
     mutateGoals(prev => prev.map(g => g.id === updated.id ? updated : g))
   }
 
-  async function updateCurrentItem(
-    goal: Goal,
-    changes: { title: string; description: string | null },
-  ) {
-    const response = await fetch(`/api/goals/${goal.id}`, {
-      method: 'PUT',
-      headers: authHeaders(),
-      body: JSON.stringify({
-        title: changes.title,
-        description: changes.description,
-        level: goal.level,
-        priority: goal.priority,
-      }),
-    })
-
-    if (response.status === 401) {
-      router.replace('/login')
-      throw new Error('Your session expired. Please sign in again.')
-    }
-
-    const text = await response.text()
-    if (!response.ok) {
-      let message = 'Could not save changes'
-      try {
-        message = JSON.parse(text).error ?? message
-      } catch { /* keep the friendly fallback for non-JSON responses */ }
-      throw new Error(message)
-    }
-
-    handleUpdated(JSON.parse(text))
-    notifyGoalsChanged()
+  function openFullEditor(goal: Goal) {
+    setActiveLevel('ALL')
+    setQuery('')
+    setEditGoalId(goal.id)
   }
+
+  useEffect(() => {
+    if (!editGoalId) return
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(`goal-${editGoalId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [editGoalId])
 
   async function handleRollover() {
     setRollingOver(true)
@@ -379,7 +363,7 @@ export default function Home() {
                 busyId={busyCurrent}
                 isDone={isDoneForPeriod}
                 onToggle={toggleCurrentItem}
-                onUpdate={updateCurrentItem}
+                onEdit={openFullEditor}
               />
             ))}
           </div>
@@ -531,6 +515,7 @@ export default function Home() {
             {filteredGoals.map((goal, i) => (
               <motion.div
                 key={goal.id}
+                id={`goal-${goal.id}`}
                 layout
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -539,6 +524,9 @@ export default function Home() {
               >
                 <GoalCard
                   goal={goal}
+                  allGoals={goals}
+                  editRequested={editGoalId === goal.id}
+                  onEditRequestHandled={() => setEditGoalId(null)}
                   onUpdated={handleUpdated}
                   onRequestDelete={handleRequestDelete}
                 />
