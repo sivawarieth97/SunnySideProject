@@ -1,22 +1,14 @@
-import { Goal, AuthResponse } from '@/types'
+import { Goal } from '@/types'
 
 const BASE = '/api'
 
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem('token')
-}
-
 function authHeaders(): HeadersInit {
-  const token = getToken()
-  return token
-    ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-    : { 'Content-Type': 'application/json' }
+  return { 'Content-Type': 'application/json' }
 }
 
 // ── Auth ──────────────────────────────────────────────────────────
 
-export async function login(email: string, password: string): Promise<AuthResponse> {
+export async function login(email: string, password: string): Promise<void> {
   const res = await fetch(`${BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -24,10 +16,9 @@ export async function login(email: string, password: string): Promise<AuthRespon
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.error ?? 'Login failed')
-  return data as AuthResponse
 }
 
-export async function register(email: string, password: string): Promise<AuthResponse> {
+export async function register(email: string, password: string): Promise<void> {
   const res = await fetch(`${BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -36,7 +27,6 @@ export async function register(email: string, password: string): Promise<AuthRes
   const data = await res.json()
   if (!res.ok) throw new Error(data.error ?? 'Registration failed')
   // register returns User, not AuthResponse — login after register
-  return login(email, password)
 }
 
 // ── Goals ─────────────────────────────────────────────────────────
@@ -54,6 +44,7 @@ export interface CreateGoalPayload {
   level?: string
   priority?: string
   period?: string
+  parentGoalId?: string | null
 }
 
 export async function createGoal(payload: CreateGoalPayload): Promise<Goal> {

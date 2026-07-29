@@ -8,8 +8,9 @@ import zio.http.{Cookie, Method, Path, Request, Response, Routes, Status, handle
 
 object AuthRoutes {
 
-  private val secureCookies =
-    sys.env.get("COOKIE_SECURE").contains("true")
+  private val isProduction = sys.env.get("APP_ENV").contains("production")
+
+  private val secureCookies = isProduction || sys.env.get("COOKIE_SECURE").exists(_.equalsIgnoreCase("true"))
 
   private def sessionCookie(token: String): Cookie.Response =
     Cookie.Response(
@@ -52,7 +53,7 @@ object AuthRoutes {
             else
               AuthService.login(r).map { auth =>
                   Response
-                    .json(auth.toJson)
+                    .json("""{"authenticated":true}""")
                     .addCookie(sessionCookie(auth.token))
                 }
                 .catchAll(e => ZIO.succeed(Response.json(s"""{"error" : "${e.getMessage}"}""").status(Status.Unauthorized)))

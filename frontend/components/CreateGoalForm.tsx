@@ -5,20 +5,21 @@ import { motion } from 'framer-motion'
 import type { Goal } from '@/app/page'
 import type { GoalLevel } from '@/types'
 import { authHeaders } from '@/lib/auth'
-import { periodForDate } from '@/lib/period'
+import { currentPeriod, friendlyPeriod, periodForDate } from '@/lib/period'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
 import { inputClass } from '@/lib/styles'
 
 type Props = {
   onCreated: (goal: Goal) => void
+  goals: Goal[]
 }
 
-const LEVELS   = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']
+const LEVELS: GoalLevel[] = ['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY']
+const HIERARCHY_ORDER: GoalLevel[] = ['YEARLY', 'QUARTERLY', 'MONTHLY', 'WEEKLY', 'DAILY']
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH']
 
 function todayISO(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return currentPeriod('DAILY')
 }
 
 // "2026-08-15" from an <input type=date> → a local Date (avoids UTC off-by-one)
@@ -27,11 +28,12 @@ function parseDateInput(value: string): Date {
   return new Date(y, m - 1, d)
 }
 
-export default function CreateGoalForm({ onCreated }: Props) {
+export default function CreateGoalForm({ onCreated, goals }: Props) {
   const [title, setTitle]           = useState('')
   const [description, setDescription] = useState('')
-  const [level, setLevel]           = useState('DAILY')
+  const [level, setLevel]           = useState<GoalLevel>('DAILY')
   const [priority, setPriority]     = useState('MEDIUM')
+  const [parentGoalId, setParentGoalId] = useState('')
   // "When is this goal for?" — defaults to today; the date is translated into
   // the right period string for the chosen level (day / week / month / ...).
   const [onDate, setOnDate]         = useState(todayISO())
@@ -42,6 +44,21 @@ export default function CreateGoalForm({ onCreated }: Props) {
   const [repeatUntil, setRepeatUntil] = useState('')
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
+
+  const levelIndex = HIERARCHY_ORDER.indexOf(level)
+  const parentCandidates = goals
+    .filter(goal => HIERARCHY_ORDER.indexOf(goal.level as GoalLevel) < levelIndex)
+    .sort((a, b) => {
+      const levelDifference =
+        HIERARCHY_ORDER.indexOf(b.level as GoalLevel) -
+        HIERARCHY_ORDER.indexOf(a.level as GoalLevel)
+      return levelDifference || a.title.localeCompare(b.title)
+    })
+
+  function handleLevelChange(nextLevel: GoalLevel) {
+    setLevel(nextLevel)
+    setParentGoalId('')
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -59,6 +76,7 @@ export default function CreateGoalForm({ onCreated }: Props) {
           level,
           priority,
           period:      periodForDate(lvl, parseDateInput(onDate)),
+          parentGoalId: parentGoalId || null,
           isRecurring: repeats,
           recurrenceEnd: repeats && repeatUntil
             ? periodForDate(lvl, parseDateInput(repeatUntil))
@@ -74,6 +92,7 @@ export default function CreateGoalForm({ onCreated }: Props) {
         setDescription('')
         setLevel('DAILY')
         setPriority('MEDIUM')
+        setParentGoalId('')
         setOnDate(todayISO())
         setRepeats(false)
         setRepeatUntil('')
@@ -122,7 +141,11 @@ export default function CreateGoalForm({ onCreated }: Props) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex-1">
           <label className={labelClass}>Level</label>
-          <select value={level} onChange={e => setLevel(e.target.value)} className={inputClass}>
+          <select
+            value={level}
+            onChange={e => handleLevelChange(e.target.value as GoalLevel)}
+            className={inputClass}
+          >
             {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
         </div>
@@ -133,6 +156,37 @@ export default function CreateGoalForm({ onCreated }: Props) {
             {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          Parent goal <span className="text-peachy-200">(optional)</span>
+        </label>
+        <select
+          value={parentGoalId}
+          onChange={e => setParentGoalId(e.target.value)}
+          disabled={parentCandidates.length === 0}
+          className={inputClass}
+        >
+          <option value="">
+            {level === 'YEARLY'
+              ? 'No parent — yearly goals are top-level'
+              : parentCandidates.length === 0
+                ? 'No broader goals available'
+                : 'No parent — keep this goal top-level'}
+          </option>
+          {parentCandidates.map(goal => (
+            <option key={goal.id} value={goal.id}>
+              {goal.level} · {goal.title}
+              {goal.period ? ` · ${friendlyPeriod(goal.period, goal.level as GoalLevel)}` : ''}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-[11px] font-semibold text-peachy-200">
+          {level === 'YEARLY'
+            ? 'A yearly goal can become a parent for any narrower goal.'
+            : `Choose a broader goal to make this ${level.toLowerCase()} goal its child.`}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

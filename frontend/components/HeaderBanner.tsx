@@ -4,8 +4,9 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { authHeaders, clearToken } from '@/lib/auth'
+import { authHeaders } from '@/lib/auth'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
+import { rolloverBreakdown, type RolloverSummary } from '@/lib/rollover'
 
 // Full banner art on the home page (and auth pages, where there's little
 // content); a slim strip everywhere else so the actual page content starts
@@ -36,10 +37,12 @@ export default function HeaderBanner() {
       }
 
       const data = await response.json()
-      if (!response.ok) throw new Error(data.detail ?? 'Rollover failed')
+      if (!response.ok) throw new Error(data.error ?? 'Rollover failed')
 
-      const count: number = data.rolledOver ?? 0
-      setRolloverFeedback(count > 0 ? `✓ ${count} moved` : '✓ Up to date')
+      const summary = data as RolloverSummary
+      const count = summary.rolledOver ?? 0
+      const breakdown = rolloverBreakdown(summary)
+      setRolloverFeedback(count > 0 ? `✓ ${breakdown || `${count} moved`}` : '✓ Up to date')
       if (count > 0) notifyGoalsChanged()
     } catch {
       setRolloverFeedback('Try again')
@@ -54,7 +57,6 @@ export default function HeaderBanner() {
       method: 'POST',
     })
 
-    clearToken()
     router.replace('/login')
     router.refresh()
   }

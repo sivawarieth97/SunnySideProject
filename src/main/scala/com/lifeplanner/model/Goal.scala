@@ -44,7 +44,24 @@ case class UpdateGoalRequest(
                               description : Option[String],
                               level : Option[String],
                               priority : Option[String],
-                              status : Option[String]
+                              status : Option[String],
+                              isRecurring : Option[Boolean],
+                              recurrenceEnd : Option[Option[String]]
                             ) derives JsonDecoder
 
 case class CompletionRequest(period: String) derives JsonDecoder
+
+case class RolloverSummary(
+                            rolledOver: Int,
+                            byLevel: Map[String, Int]
+                          ) derives JsonEncoder
+
+case class GoalRollover(
+                         fromPeriod: String,
+                         toPeriod: String,
+                         rolledOverAt: Instant
+                       )
+
+object GoalRollover:
+  given JsonEncoder[Instant] = JsonEncoder[String].contramap(_.toString)
+  given JsonEncoder[GoalRollover] = DeriveJsonEncoder.gen[GoalRollover]

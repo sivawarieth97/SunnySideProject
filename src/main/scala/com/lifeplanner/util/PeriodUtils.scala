@@ -1,28 +1,39 @@
 package com.lifeplanner.util
 
-import java.time.temporal.WeekFields
 import java.time.{LocalDate, ZoneId}
-import java.util.Locale
 
 object PeriodUtils {
 
-  def currentPeriod(level: String) =
-    val today = LocalDate.now(ZoneId.of("Asia/Kolkata"))
-    level match {
-      case "DAILY" => today.toString
-      case "WEEKLY" =>
-        val week = today.get(WeekFields.of(Locale.getDefault).weekOfWeekBasedYear())
-        f"${today.getYear}-W${week}%02d"
+  val PlannerZone: ZoneId = ZoneId.of("Asia/Kolkata")
 
-      case "MONTHLY" => f"${today.getYear}-${today.getMonthValue}%02d"
-      case "YEARLY" => today.getYear.toString
+  val SupportedLevels: List[String] =
+    List("DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY")
+
+  def currentPeriod(level: String): String =
+    periodForDate(level, LocalDate.now(PlannerZone))
+
+  def periodForDate(level: String, date: LocalDate): String =
+    level match {
+      case "DAILY" => date.toString
+      case "WEEKLY" =>
+        // Sunday-based calendar weeks, matching frontend/lib/period.ts.
+        // Week 1 contains January 1 and uses the calendar year.
+        val januaryFirst = LocalDate.of(date.getYear, 1, 1)
+        val sundayBasedOffset = januaryFirst.getDayOfWeek.getValue % 7
+        val week = Math.ceil(
+          (date.getDayOfYear - 1 + sundayBasedOffset + 1) / 7.0
+        ).toInt
+        f"${date.getYear}-W${week}%02d"
+
+      case "MONTHLY" => f"${date.getYear}-${date.getMonthValue}%02d"
+      case "YEARLY" => date.getYear.toString
       case "QUARTERLY" =>
-        val q = (today.getMonthValue - 1) / 3 + 1
-        s"${today.getYear}-Q$q"
-      case _ => today.toString
+        val q = (date.getMonthValue - 1) / 3 + 1
+        s"${date.getYear}-Q$q"
+      case _ => date.toString
     }
 
-  def isPast(period: String, level : String) =
+  def isPast(period: String, level : String): Boolean =
     val current = currentPeriod(level)
     period < current
 

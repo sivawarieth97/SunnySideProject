@@ -1,7 +1,7 @@
 package com.lifeplanner.api
 
 import com.lifeplanner.model.{CompletionRequest, CreateGoalRequest, UpdateGoalRequest}
-import com.lifeplanner.repository.GoalRepository
+import com.lifeplanner.repository.{GoalRepository, InvalidParentGoal}
 import com.lifeplanner.service.AuthService
 import zio.ZIO
 import zio.http.*
@@ -38,8 +38,9 @@ object GoalRoutes {
         val result = for
           userId <- extractUserId(req).mapError(_ => Response.json("""{"error" : "Unauthorized"}""").status(Status.Unauthorized))
           userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
-          count <- GoalRepository.rolloverPastGoals(userUUID).mapError(e => Response.json(s"""{"error":"${e.getMessage}"}""").status(Status.InternalServerError))
-        yield Response.json(s"""{"rolledOver": $count}""")
+          summary <- GoalRepository.rolloverPastGoals(userUUID)
+            .mapError(_ => Response.json("""{"error":"Could not roll over goals"}""").status(Status.InternalServerError))
+        yield Response.json(summary.toJson)
         result.merge
       },
 
@@ -60,7 +61,16 @@ object GoalRoutes {
 
             case Right(r) =>
               GoalRepository.insert(r.title, r.description, r.level, r.priority, r.period, r.parentGoalId, userUUID, r.isRecurring, r.recurrenceEnd)
-              .map(goal => Response.json(goal.toJson).status(Status.Created)).orDie
+                .map(goal => Response.json(goal.toJson).status(Status.Created))
+                .catchSome {
+                  case _: InvalidParentGoal =>
+                    ZIO.succeed(
+                      Response
+                        .json("""{"error":"Parent goal not found"}""")
+                        .status(Status.BadRequest)
+                    )
+                }
+                .orDie
 
         yield resp
 
@@ -84,6 +94,19 @@ object GoalRoutes {
               .status(Status.NotFound)
 
         yield resp
+        result.merge
+      },
+
+      Method.GET / "goals" / string("id") / "rollovers" -> handler { (idStr: String, req: Request) =>
+        val result = for
+          userId <- extractUserId(req)
+            .mapError(_ => Response.json("""{"error":"Unauthorized"}""").status(Status.Unauthorized))
+          userUUID <- ZIO.attempt(UUID.fromString(userId)).orDie
+          id <- ZIO.attempt(UUID.fromString(idStr))
+            .orElseFail(Response.json("""{"error":"invalid UUID"}""").status(Status.BadRequest))
+          history <- GoalRepository.findRolloverHistory(id, userUUID)
+            .mapError(_ => Response.json("""{"error":"Could not load rollover history"}""").status(Status.InternalServerError))
+        yield Response.json(s"""{"rollovers":${history.toJson}}""")
         result.merge
       },
 
@@ -116,7 +139,7 @@ object GoalRoutes {
 
             case Right(r) =>
               ZIO.attempt(UUID.fromString(idStr)).orDie.flatMap { id =>
-                GoalRepository.update(id, r.title, r.description, r.level, r.priority, r.status, userUUID)
+                GoalRepository.update(id, r.title, r.description, r.level, r.priority, r.status, r.isRecurring, r.recurrenceEnd, userUUID)
                   .map {
                     case Some(goal) => Response.json(goal.toJson)
                     case None => Response.json(s"""{"error":"Goal not found"}""").status(Status.NotFound)

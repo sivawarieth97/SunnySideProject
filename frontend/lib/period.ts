@@ -1,28 +1,84 @@
-import { GoalLevel } from '@/types'
+import type { GoalLevel } from '@/types'
 
-/** Returns the current period string for a given level — mirrors PeriodUtils.scala */
-export function currentPeriod(level: GoalLevel): string {
-  const now = new Date()
+export const PLANNER_TIME_ZONE = 'Asia/Kolkata'
+
+type CalendarDate = {
+  year: number
+  month: number
+  day: number
+}
+
+const plannerDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: PLANNER_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+function plannerDateFromInstant(date: Date): CalendarDate {
+  const parts = plannerDateFormatter.formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find(part => part.type === type)?.value)
+
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+  }
+}
+
+function localCalendarDate(date: Date): CalendarDate {
+  return {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1,
+    day: date.getDate(),
+  }
+}
+
+function utcCalendarDate(date: Date): CalendarDate {
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  }
+}
+
+function shiftCalendarDate(
+  date: CalendarDate,
+  options: { days?: number; months?: number },
+): CalendarDate {
+  return utcCalendarDate(new Date(Date.UTC(
+    date.year,
+    date.month - 1 + (options.months ?? 0),
+    date.day + (options.days ?? 0),
+  )))
+}
+
+function periodForCalendarDate(level: GoalLevel, date: CalendarDate): string {
   switch (level) {
     case 'DAILY':
-      return now.toISOString().slice(0, 10) // YYYY-MM-DD
+      return `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`
     case 'WEEKLY': {
-      // ISO week number
-      const jan1 = new Date(now.getFullYear(), 0, 1)
+      const januaryFirst = Date.UTC(date.year, 0, 1)
+      const dateValue = Date.UTC(date.year, date.month - 1, date.day)
+      const januaryFirstDay = new Date(januaryFirst).getUTCDay()
       const week = Math.ceil(
-        ((now.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7
+        ((dateValue - januaryFirst) / 86400000 + januaryFirstDay + 1) / 7
       )
-      return `${now.getFullYear()}-W${String(week).padStart(2, '0')}`
+      return `${date.year}-W${String(week).padStart(2, '0')}`
     }
     case 'MONTHLY':
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    case 'QUARTERLY': {
-      const quarter = Math.floor(now.getMonth() / 3) + 1
-      return `${now.getFullYear()}-Q${quarter}`
-    }
+      return `${date.year}-${String(date.month).padStart(2, '0')}`
+    case 'QUARTERLY':
+      return `${date.year}-Q${Math.floor((date.month - 1) / 3) + 1}`
     case 'YEARLY':
-      return String(now.getFullYear())
+      return String(date.year)
   }
+}
+
+/** Returns the current period string for a given level — mirrors PeriodUtils.scala */
+export function currentPeriod(level: GoalLevel, now = new Date()): string {
+  return periodForCalendarDate(level, plannerDateFromInstant(now))
 }
 
 /**
@@ -32,34 +88,30 @@ export function currentPeriod(level: GoalLevel): string {
  * items across real future periods instead of dumping them all into "now".
  */
 export function periodAtOffset(level: GoalLevel, offset: number): string {
-  const now = new Date()
+  const today = plannerDateFromInstant(new Date())
   switch (level) {
-    case 'DAILY': {
-      const d = new Date(now)
-      d.setDate(d.getDate() + offset)
-      return d.toISOString().slice(0, 10)
-    }
-    case 'WEEKLY': {
-      const d = new Date(now)
-      d.setDate(d.getDate() + offset * 7)
-      const jan1 = new Date(d.getFullYear(), 0, 1)
-      const week = Math.ceil(
-        ((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7
+    case 'DAILY':
+      return periodForCalendarDate('DAILY', shiftCalendarDate(today, { days: offset }))
+    case 'WEEKLY':
+      return periodForCalendarDate('WEEKLY', shiftCalendarDate(today, { days: offset * 7 }))
+    case 'MONTHLY':
+      return periodForCalendarDate(
+        'MONTHLY',
+        shiftCalendarDate({ ...today, day: 1 }, { months: offset }),
       )
-      return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`
-    }
-    case 'MONTHLY': {
-      const d = new Date(now.getFullYear(), now.getMonth() + offset, 1)
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    }
     case 'QUARTERLY': {
-      const totalQuarter = Math.floor(now.getMonth() / 3) + offset
-      const year = now.getFullYear() + Math.floor(totalQuarter / 4)
-      const quarter = ((totalQuarter % 4) + 4) % 4 + 1
-      return `${year}-Q${quarter}`
+      const quarterStart = {
+        ...today,
+        month: Math.floor((today.month - 1) / 3) * 3 + 1,
+        day: 1,
+      }
+      return periodForCalendarDate(
+        'QUARTERLY',
+        shiftCalendarDate(quarterStart, { months: offset * 3 }),
+      )
     }
     case 'YEARLY':
-      return String(now.getFullYear() + offset)
+      return String(today.year + offset)
   }
 }
 
@@ -70,28 +122,74 @@ export function periodAtOffset(level: GoalLevel, offset: number): string {
  * calendar when projecting goals onto day cells.
  */
 export function periodForDate(level: GoalLevel, date: Date): string {
+  return periodForCalendarDate(level, localCalendarDate(date))
+}
+
+function dateInputValue(date: Date): string {
+  const year = String(date.getFullYear()).padStart(4, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Converts a stored period into a representative date for an HTML date input.
+ * Saving that date through periodForDate() produces the original period again.
+ * An empty string represents an invalid period or a recurrence with no end.
+ */
+export function dateInputForPeriod(
+  period: string | null,
+  level: GoalLevel,
+): string {
+  if (!period) return ''
+
   switch (level) {
     case 'DAILY': {
-      const y = date.getFullYear()
-      const m = String(date.getMonth() + 1).padStart(2, '0')
-      const d = String(date.getDate()).padStart(2, '0')
-      return `${y}-${m}-${d}`
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(period)) return ''
+      const [year, month, day] = period.split('-').map(Number)
+      const date = localDate(year, month - 1, day)
+      return periodForDate('DAILY', date) === period ? period : ''
     }
     case 'WEEKLY': {
-      const jan1 = new Date(date.getFullYear(), 0, 1)
-      const week = Math.ceil(
-        ((date.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7
+      const match = period.match(/^(\d{4})-W(\d{2})$/)
+      if (!match) return ''
+
+      const year = Number(match[1])
+      const week = Number(match[2])
+      if (week < 1 || week > 53) return ''
+
+      const januaryFirst = localDate(year, 0, 1)
+      const weekStart = localDate(
+        year,
+        0,
+        1 - januaryFirst.getDay() + ((week - 1) * 7),
       )
-      return `${date.getFullYear()}-W${String(week).padStart(2, '0')}`
+      // Week 1 can begin in the previous calendar year. The date input must
+      // remain inside the stored year because periodForDate prefixes that year.
+      const representative = weekStart < januaryFirst ? januaryFirst : weekStart
+      return periodForDate('WEEKLY', representative) === period
+        ? dateInputValue(representative)
+        : ''
     }
-    case 'MONTHLY':
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    case 'MONTHLY': {
+      const match = period.match(/^(\d{4})-(\d{2})$/)
+      if (!match) return ''
+      const year = Number(match[1])
+      const month = Number(match[2])
+      if (month < 1 || month > 12) return ''
+      return dateInputValue(localDate(year, month - 1, 1))
+    }
     case 'QUARTERLY': {
-      const quarter = Math.floor(date.getMonth() / 3) + 1
-      return `${date.getFullYear()}-Q${quarter}`
+      const match = period.match(/^(\d{4})-Q([1-4])$/)
+      if (!match) return ''
+      const year = Number(match[1])
+      const quarter = Number(match[2])
+      return dateInputValue(localDate(year, (quarter - 1) * 3, 1))
     }
-    case 'YEARLY':
-      return String(date.getFullYear())
+    case 'YEARLY': {
+      if (!/^\d{4}$/.test(period)) return ''
+      return `${period}-01-01`
+    }
   }
 }
 

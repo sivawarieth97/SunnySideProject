@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import type { Goal } from '@/app/page'
 import type { GoalLevel } from '@/types'
 import { authHeaders } from '@/lib/auth'
-import { periodForDate } from '@/lib/period'
+import { currentPeriod, dateInputForPeriod, periodForDate } from '@/lib/period'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
 import { timeAgo } from '@/lib/format'
 import { inputClass } from '@/lib/styles'
@@ -44,14 +44,27 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
   const [level, setLevel]             = useState(goal.level)
   const [priority, setPriority]       = useState(goal.priority)
   const [repeats, setRepeats]         = useState(goal.isRecurring)
-  // Date input only prefills for DAILY (whose period strings are already
-  // YYYY-MM-DD); other levels start blank and convert on save.
   const [repeatUntil, setRepeatUntil] = useState(
-    goal.recurrenceEnd && /^\d{4}-\d{2}-\d{2}$/.test(goal.recurrenceEnd) ? goal.recurrenceEnd : ''
+    dateInputForPeriod(goal.recurrenceEnd, goal.level as GoalLevel)
   )
   const [saving, setSaving]           = useState(false)
   const [completing, setCompleting]   = useState(false)
   const [error, setError]             = useState('')
+
+  function resetDraft() {
+    setTitle(goal.title)
+    setDescription(goal.description ?? '')
+    setLevel(goal.level)
+    setPriority(goal.priority)
+    setRepeats(goal.isRecurring)
+    setRepeatUntil(dateInputForPeriod(goal.recurrenceEnd, goal.level as GoalLevel))
+    setError('')
+  }
+
+  function startEditing() {
+    resetDraft()
+    setEditing(true)
+  }
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()
@@ -93,7 +106,7 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
 
   // For recurring goals the current period (today / this week / ...) that
   // "✓ Done" should tick — a recurring goal is never globally COMPLETED.
-  const currentOccurrence = periodForDate(goal.level as GoalLevel, new Date())
+  const currentOccurrence = currentPeriod(goal.level as GoalLevel)
   const doneNow = goal.isRecurring
     ? goal.completedPeriods.includes(currentOccurrence)
     : goal.status === 'COMPLETED'
@@ -241,14 +254,7 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
             type="button"
             onClick={() => {
               setEditing(false)
-              setTitle(goal.title)
-              setDescription(goal.description ?? '')
-              setLevel(goal.level)
-              setPriority(goal.priority)
-              setRepeats(goal.isRecurring)
-              setRepeatUntil(
-                goal.recurrenceEnd && /^\d{4}-\d{2}-\d{2}$/.test(goal.recurrenceEnd) ? goal.recurrenceEnd : ''
-              )
+              resetDraft()
             }}
             className="px-3 py-1.5 text-sm font-bold text-blossom-300 hover:text-blossom-400"
           >
@@ -315,7 +321,7 @@ export default function GoalCard({ goal, onUpdated, onRequestDelete }: Props) {
             {completing ? '...' : goal.isRecurring ? (doneNow ? '✓ Today' : 'Today?') : completed ? '↺ Reopen' : '✓ Done'}
           </button>
           <button
-            onClick={() => setEditing(true)}
+            onClick={startEditing}
             className="rounded-full border border-sunny-200 bg-sunny-50 px-3 py-1 text-xs
                        font-bold text-peachy-400 transition hover:bg-sunny-100"
           >

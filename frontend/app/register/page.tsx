@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { setToken } from '@/lib/auth'
 import Link from 'next/link'
 
 export default function RegisterPage() {
@@ -40,10 +39,9 @@ export default function RegisterPage() {
         body:    JSON.stringify({ email, password }),
       })
 
-      const loginData = await loginRes.json()
+      await loginRes.json()
 
       if (loginRes.ok) {
-        setToken(loginData.token)
         router.push('/')
       } else {
         router.push('/login')

@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { authHeaders } from '@/lib/auth'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
 import { useGoals, mutateGoals } from '@/lib/useGoals'
-import { periodForDate, isPast } from '@/lib/period'
+import { currentPeriod, isPast } from '@/lib/period'
+import { rolloverBreakdown, type RolloverSummary } from '@/lib/rollover'
 import type { Goal, GoalLevel } from '@/types'
 import CreateGoalForm from '@/components/CreateGoalForm'
 import CurrentPeriodList from '@/components/CurrentPeriodList'
@@ -153,12 +154,15 @@ export default function Home() {
         setRolloverMsg(`Error ${res.status}: ${text}`)
         return
       }
-      const data = JSON.parse(text)
-      const count: number = data.rolledOver ?? 0
+      const data = JSON.parse(text) as RolloverSummary
+      const count = data.rolledOver ?? 0
       if (count === 0) {
         setRolloverMsg('No past goals to roll over! ✨')
       } else {
-        setRolloverMsg(`↻ Rolled over ${count} goal${count > 1 ? 's' : ''} into the current period! 🎀`)
+        const breakdown = rolloverBreakdown(data)
+        setRolloverMsg(
+          `↻ Carried ${count} goal${count > 1 ? 's' : ''} into the current period${breakdown ? ` (${breakdown})` : ''}. History was saved. 🎀`
+        )
         notifyGoalsChanged()
       }
     } catch (e) {
@@ -191,7 +195,7 @@ export default function Home() {
 
   const currentGroups = CURRENT_GROUPS
     .map(group => {
-      const period = periodForDate(group.level, new Date())
+      const period = currentPeriod(group.level)
 
       return {
         ...group,
@@ -615,7 +619,7 @@ export default function Home() {
 
               <div className="px-4 pt-3 sm:p-5">
                 <div className="pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pb-0">
-                  <CreateGoalForm onCreated={handleCreated} />
+                  <CreateGoalForm onCreated={handleCreated} goals={goals} />
                 </div>
               </div>
             </motion.section>

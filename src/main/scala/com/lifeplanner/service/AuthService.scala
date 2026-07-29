@@ -10,10 +10,9 @@ import zio.{ZIO, ZLayer}
 import java.time.Instant
 import java.util.Date
 
-class AuthService (userRepo: UserRepository) :
+class AuthService (userRepo: UserRepository, secret : String) :
   // Falls back to a dev-only default so the app still runs locally without extra
   // setup, but a real deployment should always set JWT_SECRET.
-  private val secret = sys.env.getOrElse("JWT_SECRET", "my-secret-change-in-production")
   private val algorithm = Algorithm.HMAC256(secret)
 
   def register(req: RegisterUser) : ZIO[Any, Throwable, User] =
@@ -28,7 +27,7 @@ class AuthService (userRepo: UserRepository) :
 
   def verifyToken(token: String): ZIO[AuthService, Throwable, String] =
     ZIO.attempt {
-      val decoded = JWT.require(algorithm).build().verify(token)
+      val decoded = JWT.require(algorithm).withIssuer(AuthService.TokenIssuer).build().verify(token)
       decoded.getSubject
     }
 
@@ -42,10 +41,12 @@ class AuthService (userRepo: UserRepository) :
 
       hashed <- ZIO.attempt(BCrypt.verifyer().verify(req.password.toCharArray, hash).verified)
 
-      _ <- ZIO.when(!hashed)(ZIO.fail(new Exception("User/password is incorrect")))
+      _ <- ZIO.when(!hashed)(ZIO.fail(new Exception("Raaz Stop entering Wrong email or Password!!! :p")))
       token = JWT.create()
+        .withIssuer(AuthService.TokenIssuer)
         .withSubject(user.id.toString())
         .withClaim("email", user.email)
+        .withIssuedAt(Date.from(Instant.now()))
         .withExpiresAt(Date.from(Instant.now().plusSeconds(AuthService.SessionTtlSeconds)))
         .sign(algorithm)
 
@@ -56,8 +57,26 @@ class AuthService (userRepo: UserRepository) :
 object AuthService:
   val SessionCookieName = "lp_session"
   val SessionTtlSeconds = 30L * 24 * 60 * 60
-  
-  val live : ZLayer[UserRepository, Nothing, AuthService] = ZLayer.fromFunction((repo: UserRepository) => new AuthService(repo))
+  val TokenIssuer = "lifeplanner-api"
+
+  val live: ZLayer[UserRepository, Throwable, AuthService] =
+    ZLayer.fromZIO {
+      for
+        repository <- ZIO.service[UserRepository]
+        secret <- ZIO
+          .fromOption(
+            sys.env
+              .get("JWT_SECRET")
+              .map(_.trim)
+              .filter(_.length >= 32)
+          )
+          .orElseFail(
+            new IllegalStateException(
+              "JWT_SECRET must be configured and contain at least 32 characters"
+            )
+          )
+      yield new AuthService(repository, secret)
+    }
 
   def register(req: RegisterUser): ZIO[AuthService, Throwable, User] =
     ZIO.serviceWithZIO[AuthService](_.register(req))

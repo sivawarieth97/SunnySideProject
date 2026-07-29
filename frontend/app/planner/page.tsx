@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { getToken, authHeaders } from '@/lib/auth'
+import { authHeaders } from '@/lib/auth'
 import { currentPeriod, periodAtOffset } from '@/lib/period'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
 import { useGoals, mutateGoals, refreshGoals } from '@/lib/useGoals'
@@ -14,6 +14,7 @@ import AIPlanner from '@/components/AIPlanner'
 import Coin from '@/components/ui/Coin'
 
 type Level = 'YEARLY' | 'QUARTERLY' | 'MONTHLY' | 'WEEKLY' | 'DAILY'
+const LEVEL_ORDER: Level[] = ['YEARLY', 'QUARTERLY', 'MONTHLY', 'WEEKLY', 'DAILY']
 const PRIORITY_CYCLE: Record<string, string> = { LOW: 'MEDIUM', MEDIUM: 'HIGH', HIGH: 'LOW' }
 
 // One quadrant of the "seed sub-goals" grid — lets you queue up any number of
@@ -228,9 +229,15 @@ export default function PlannerPage() {
     notifyGoalsChanged()
   }
 
-  const yearlyGoals = goals
-    .filter(g => g.level === 'YEARLY' && !g.parentGoalId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  // Any level can be a hierarchy root. For example, a standalone weekly goal
+  // may own daily goals even when it is not attached to a yearly goal.
+  const rootGoals = goals
+    .filter(g => !g.parentGoalId)
+    .sort((a, b) => {
+      const levelDifference =
+        LEVEL_ORDER.indexOf(a.level as Level) - LEVEL_ORDER.indexOf(b.level as Level)
+      return levelDifference || b.createdAt.localeCompare(a.createdAt)
+    })
 
   return (
     <div className="space-y-5">
@@ -357,20 +364,20 @@ export default function PlannerPage() {
         </div>
       )}
 
-      {loaded && yearlyGoals.length === 0 && (
+      {loaded && rootGoals.length === 0 && (
         <div className="py-12 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full
                           bg-gradient-to-br from-blossom-50 to-peachy-50 text-3xl shadow-sm">
             🌱
           </div>
-          <p className="mt-3 text-sm font-semibold text-[#5b3a2e]/60">No yearly goals yet.</p>
-          <p className="text-sm font-medium text-[#5b3a2e]/50">Plant one above to start growing your year!</p>
+          <p className="mt-3 text-sm font-semibold text-[#5b3a2e]/60">No goals yet.</p>
+          <p className="text-sm font-medium text-[#5b3a2e]/50">Plant one above to start growing your plan!</p>
         </div>
       )}
 
-      {loaded && yearlyGoals.length > 0 && (
+      {loaded && rootGoals.length > 0 && (
         <div className="space-y-3">
-          {yearlyGoals.map(goal => (
+          {rootGoals.map(goal => (
             <PlannerTreeNode
               key={goal.id}
               goal={goal}

@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { setToken } from '@/lib/auth'
 import Link from 'next/link'
 
 export default function LoginPage() {
@@ -28,7 +27,6 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (res.ok) {
-        setToken(data.token)
         router.push('/')
       } else {
         setError(data.error ?? 'Login failed')

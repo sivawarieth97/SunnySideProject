@@ -13,7 +13,10 @@ lazy val root = (project in file("."))
       "org.flywaydb"    % "flyway-database-postgresql"  % "10.20.1",
       "com.auth0"    % "java-jwt"  % "4.4.0",
       "at.favre.lib" % "bcrypt"    % "0.10.2",
+      "dev.zio" %% "zio-test"     % "2.1.9" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.9" % Test,
     ),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
 
     // ---- sbt-assembly (fat jar for the Docker image) ----
     assembly / mainClass := Some("Main"),

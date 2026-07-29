@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { authHeaders } from '@/lib/auth'
-import { periodForDate } from '@/lib/period'
+import { currentPeriod, periodForDate } from '@/lib/period'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
 import { useGoals, mutateGoals } from '@/lib/useGoals'
 import Coin from '@/components/ui/Coin'
@@ -41,8 +41,8 @@ export default function GoalCalendar() {
   // Shared store — same data the page views use, fetched once for everyone.
   const { goals, loaded } = useGoals()
   const [monthStart, setMonthStart] = useState(() => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
+    const [year, month] = currentPeriod('DAILY').split('-').map(Number)
+    return new Date(year, month - 1, 1)
   })
   const [selectedDay, setSelectedDay] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null) // goalId while toggling
@@ -56,7 +56,7 @@ export default function GoalCalendar() {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   // Monday-first offset: getDay() is 0=Sun..6=Sat → 0=Mon..6=Sun
   const firstOffset = (monthStart.getDay() + 6) % 7
-  const todayIso = isoOf(new Date())
+  const todayIso = currentPeriod('DAILY')
 
   const dailyGoals  = goals.filter(g => g.level === 'DAILY')
   const weeklyGoals = goals.filter(g => g.level === 'WEEKLY')
