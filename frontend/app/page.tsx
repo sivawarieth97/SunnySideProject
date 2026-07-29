@@ -9,6 +9,7 @@ import { useGoals, mutateGoals } from '@/lib/useGoals'
 import { periodForDate, isPast } from '@/lib/period'
 import type { Goal, GoalLevel } from '@/types'
 import CreateGoalForm from '@/components/CreateGoalForm'
+import CurrentPeriodList from '@/components/CurrentPeriodList'
 import GoalCard from '@/components/GoalCard'
 import CategoryCard from '@/components/CategoryCard'
 import Coin from '@/components/ui/Coin'
@@ -16,6 +17,19 @@ import Coin from '@/components/ui/Coin'
 // Canonical Goal type lives in types/index.ts; re-exported here so the many
 // existing `import type { Goal } from '@/app/page'` imports keep working.
 export type { Goal }
+
+const CURRENT_GROUPS: Array<{
+  level: GoalLevel
+  title: string
+  subtitle: string
+  emoji: string
+}> = [
+  { level: 'DAILY', title: 'Today', subtitle: 'Daily habits', emoji: '☀️' },
+  { level: 'WEEKLY', title: 'This week', subtitle: 'Weekly goals', emoji: '📆' },
+  { level: 'MONTHLY', title: 'This month', subtitle: 'Monthly goals', emoji: '🌙' },
+  { level: 'QUARTERLY', title: 'This quarter', subtitle: 'Quarterly goals', emoji: '🍂' },
+  { level: 'YEARLY', title: 'This year', subtitle: 'Yearly goals', emoji: '⭐' },
+]
 
 export default function Home() {
   const router = useRouter()
@@ -26,13 +40,32 @@ export default function Home() {
   const [rollingOver, setRollingOver]   = useState(false)
   const [rolloverMsg, setRolloverMsg]   = useState('')
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
-  const [busyToday, setBusyToday]       = useState<string | null>(null)
+  const [busyCurrent, setBusyCurrent]   = useState<string | null>(null)
 
   useEffect(() => {
     if (loaded && error === 'UNAUTHORIZED') {
       router.replace('/login')
     }
   }, [loaded, error, router])
+
+  // A modal should keep the page underneath still. Escape also gives keyboard
+  // users a predictable way to dismiss it.
+  useEffect(() => {
+    if (!showForm) return
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowForm(false)
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [showForm])
 
   // Grace-period delete: the card disappears immediately (filtered from the
   // visible list), but the actual DELETE only fires after 5s — Undo just
@@ -108,52 +141,80 @@ export default function Home() {
     document.getElementById('overview')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  // ---- Today strip: today's recurring habits + one-offs due today ----
-  const todayIso = periodForDate('DAILY', new Date())
-  const todayItems = goals.filter(g => {
-    if (g.level !== 'DAILY') return false
-    if (!g.isRecurring) return g.period === todayIso
-    const start = g.originalPeriod ?? g.period
-    if (start && todayIso < start) return false
-    if (g.recurrenceEnd && todayIso > g.recurrenceEnd) return false
-    return true
-  })
+  // ---- Current focus: active goals grouped by their natural time period ----
+  function goalsForCurrentPeriod(level: GoalLevel, period: string): Goal[] {
+    return goals.filter(g => {
+      if (g.level !== level) return false
+      if (!g.isRecurring) return g.period === period
 
-  function isDoneToday(g: Goal): boolean {
-    return g.isRecurring ? g.completedPeriods.includes(todayIso) : g.status === 'COMPLETED'
+      const start = g.originalPeriod ?? g.period
+      if (start && period < start) return false
+      if (g.recurrenceEnd && period > g.recurrenceEnd) return false
+      return true
+    })
+  }
+
+  const currentGroups = CURRENT_GROUPS
+    .map(group => {
+      const period = periodForDate(group.level, new Date())
+
+      return {
+        ...group,
+        period,
+        items: goalsForCurrentPeriod(group.level, period),
+      }
+    })
+    .filter(group => group.items.length > 0)
+
+  function isDoneForPeriod(g: Goal, period: string): boolean {
+    return g.isRecurring ? g.completedPeriods.includes(period) : g.status === 'COMPLETED'
   }
 
   // Optimistic: flip locally first, then tell the server, then reconcile.
-  async function toggleToday(g: Goal) {
-    setBusyToday(g.id)
-    const done = isDoneToday(g)
+  async function toggleCurrentItem(g: Goal, period: string) {
+    setBusyCurrent(g.id)
+    const done = isDoneForPeriod(g, period)
     mutateGoals(prev => prev.map(x => {
       if (x.id !== g.id) return x
       return g.isRecurring
-        ? { ...x, completedPeriods: done ? x.completedPeriods.filter(p => p !== todayIso) : [...x.completedPeriods, todayIso] }
+        ? {
+            ...x,
+            completedPeriods: done
+              ? x.completedPeriods.filter(p => p !== period)
+              : [...x.completedPeriods, period],
+          }
         : { ...x, status: done ? 'PENDING' : 'COMPLETED' }
     }))
     try {
       if (g.isRecurring) {
         if (done) {
-          await fetch(`/api/goals/${g.id}/completions/${todayIso}`, { method: 'DELETE', headers: authHeaders() })
+          await fetch(`/api/goals/${g.id}/completions/${period}`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+          })
         } else {
           await fetch(`/api/goals/${g.id}/completions`, {
-            method: 'POST', headers: authHeaders(), body: JSON.stringify({ period: todayIso }),
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify({ period }),
           })
         }
       } else {
         await fetch(`/api/goals/${g.id}`, {
-          method: 'PUT', headers: authHeaders(),
+          method: 'PUT',
+          headers: authHeaders(),
           body: JSON.stringify({
-            title: g.title, description: g.description, level: g.level, priority: g.priority,
+            title: g.title,
+            description: g.description,
+            level: g.level,
+            priority: g.priority,
             status: done ? 'PENDING' : 'COMPLETED',
           }),
         })
       }
       notifyGoalsChanged()
     } finally {
-      setBusyToday(null)
+      setBusyCurrent(null)
     }
   }
 
@@ -175,15 +236,15 @@ export default function Home() {
     <div className="flex flex-col gap-6 sm:flex-row">
 
       {/* Side panel */}
-      <aside className="flex shrink-0 flex-row gap-2 sm:w-40 sm:flex-col">
+      <aside className="flex shrink-0 flex-row gap-2 sm:sticky sm:top-4 sm:w-40 sm:self-start sm:flex-col">
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => setShowForm(v => !v)}
-          className="w-full rounded-full bg-gradient-to-r from-peachy-300 to-blossom-300
-                     px-4 py-2 font-display text-sm font-bold text-white shadow-cute"
+          onClick={() => setShowForm(true)}
+          className="hidden w-full rounded-full bg-gradient-to-r from-peachy-300 to-blossom-300
+                     px-4 py-2 font-display text-sm font-bold text-white shadow-cute sm:block"
         >
-          {showForm ? '✕ Cancel' : '✨ New Goal'}
+          ✨ New Goal
         </motion.button>
         <motion.button
           whileHover={{ scale: 1.05 }}
@@ -233,40 +294,36 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Today — the daily loop, front and center */}
-      {todayItems.length > 0 && (
-        <div className="rounded-cute border border-sunny-200 bg-white/70 p-4 shadow-sm backdrop-blur">
-          <h2 className="flex items-center gap-2 font-display text-xl font-extrabold text-peachy-400">
-            <Coin emoji="☀️" gradient="from-sunny-200 to-sunny-300" />
-            Today
-            <span className="text-sm font-bold text-[#5b3a2e]/40">
-              {todayItems.filter(isDoneToday).length}/{todayItems.length} done
-            </span>
-          </h2>
-          <ul className="mt-2 grid gap-1.5 sm:grid-cols-2">
-            {todayItems.map(g => {
-              const done = isDoneToday(g)
-              return (
-                <li key={g.id}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded-xl bg-sunny-50/70 px-2.5 py-1.5
-                                    transition hover:bg-sunny-100/70">
-                    <input
-                      type="checkbox"
-                      checked={done}
-                      disabled={busyToday === g.id}
-                      onChange={() => toggleToday(g)}
-                      className="accent-peachy-300"
-                    />
-                    <span className={`min-w-0 truncate text-sm font-semibold
-                                      ${done ? 'text-[#5b3a2e]/40 line-through' : 'text-[#5b3a2e]'}`}>
-                      {g.isRecurring ? '↻ ' : ''}{g.title}
-                    </span>
-                  </label>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+      {/* Current-period goals stay visually separate by their natural cadence. */}
+      {currentGroups.length > 0 && (
+        <section>
+          <div className="mb-3">
+            <h2 className="flex items-center gap-2 font-display text-xl font-extrabold text-peachy-400">
+              <Coin emoji="🎯" gradient="from-sunny-200 to-blossom-200" />
+              Current focus
+            </h2>
+            <p className="pl-10 text-xs font-semibold text-[#5b3a2e]/45">
+              Daily through yearly goals, each in its own rhythm
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {currentGroups.map(group => (
+              <CurrentPeriodList
+                key={group.level}
+                level={group.level}
+                title={group.title}
+                subtitle={group.subtitle}
+                emoji={group.emoji}
+                items={group.items}
+                period={group.period}
+                busyId={busyCurrent}
+                isDone={isDoneForPeriod}
+                onToggle={toggleCurrentItem}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Hub — jump straight to a level, or open the full breakdown in the Life Planner */}
@@ -383,23 +440,6 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Create form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="rounded-cute border border-blossom-100 bg-white/70 p-4 sm:p-5 shadow-cute backdrop-blur">
-              <h3 className="mb-3 font-display text-base font-bold text-peachy-400">New Goal 🌟</h3>
-              <CreateGoalForm onCreated={handleCreated} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {error && <p className="text-sm font-semibold text-blossom-400">{error}</p>}
 
       {!loaded && (
@@ -449,6 +489,83 @@ export default function Home() {
       )}
 
       </div>
+
+      {/* Phone-sized primary action: always reachable without scrolling back up. */}
+      <AnimatePresence>
+        {!showForm && (
+          <motion.button
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            whileTap={{ scale: 0.96 }}
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="fixed right-4 z-40 rounded-full bg-gradient-to-r
+                       from-peachy-300 to-blossom-300 px-5 py-3 font-display
+                       text-sm font-bold text-white shadow-cute sm:hidden
+                       bottom-[calc(env(safe-area-inset-bottom)+1rem)]"
+          >
+            ＋ New Goal
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom sheet on phones; centered dialog on wider screens. */}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowForm(false)}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-[#3d2118]/35
+                       backdrop-blur-sm sm:items-center sm:p-6"
+          >
+            <motion.section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="new-goal-title"
+              initial={{ opacity: 0, y: 48 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 48 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              onClick={event => event.stopPropagation()}
+              className="max-h-[88dvh] w-full overflow-y-auto overscroll-contain
+                         rounded-t-3xl border border-blossom-100 bg-[#fffaf6]
+                         shadow-2xl sm:max-w-lg sm:rounded-cute"
+            >
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b
+                              border-blossom-100 bg-[#fffaf6]/95 px-4 py-3 backdrop-blur
+                              sm:px-5">
+                <div>
+                  <h2 id="new-goal-title" className="font-display text-lg font-extrabold text-peachy-400">
+                    New Goal 🌟
+                  </h2>
+                  <p className="text-xs font-semibold text-[#5b3a2e]/45">
+                    Add it without losing your place
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  aria-label="Close new goal form"
+                  className="flex h-9 w-9 items-center justify-center rounded-full
+                             bg-blossom-50 text-lg font-bold text-blossom-300
+                             transition hover:bg-blossom-100"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="px-4 pt-3 sm:p-5">
+                <div className="pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:pb-0">
+                  <CreateGoalForm onCreated={handleCreated} />
+                </div>
+              </div>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
