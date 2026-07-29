@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { authHeaders } from '@/lib/auth'
@@ -41,6 +41,8 @@ export default function Home() {
   const [rolloverMsg, setRolloverMsg]   = useState('')
   const [nudgeDismissed, setNudgeDismissed] = useState(false)
   const [busyCurrent, setBusyCurrent]   = useState<string | null>(null)
+  const [showFloatingNewGoal, setShowFloatingNewGoal] = useState(false)
+  const currentFocusActionsRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (loaded && error === 'UNAUTHORIZED') {
@@ -199,6 +201,23 @@ export default function Home() {
     })
     .filter(group => group.items.length > 0)
 
+  // Avoid showing two New Goal actions at once. Once the contextual action
+  // scrolls away, the floating action takes over.
+  useEffect(() => {
+    const actions = currentFocusActionsRef.current
+    if (!actions) {
+      setShowFloatingNewGoal(true)
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowFloatingNewGoal(!entry.isIntersecting),
+      { rootMargin: '-16px 0px 0px' },
+    )
+    observer.observe(actions)
+    return () => observer.disconnect()
+  }, [currentGroups.length])
+
   function isDoneForPeriod(g: Goal, period: string): boolean {
     return g.isRecurring ? g.completedPeriods.includes(period) : g.status === 'COMPLETED'
   }
@@ -319,14 +338,28 @@ export default function Home() {
       {/* Current-period goals stay visually separate by their natural cadence. */}
       {currentGroups.length > 0 && (
         <section>
-          <div className="mb-3">
-            <h2 className="flex items-center gap-2 font-display text-xl font-extrabold text-peachy-400">
-              <Coin emoji="🎯" gradient="from-sunny-200 to-blossom-200" />
-              Current focus
-            </h2>
-            <p className="pl-10 text-xs font-semibold text-[#5b3a2e]/45">
-              Daily through yearly goals, each in its own rhythm
-            </p>
+          <div
+            ref={currentFocusActionsRef}
+            className="mb-3 flex items-start justify-between gap-3"
+          >
+            <div>
+              <h2 className="flex items-center gap-2 font-display text-xl font-extrabold text-peachy-400">
+                <Coin emoji="🎯" gradient="from-sunny-200 to-blossom-200" />
+                Current focus
+              </h2>
+              <p className="pl-10 text-xs font-semibold text-[#5b3a2e]/45">
+                Tap a period or task to expand it
+              </p>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="shrink-0 rounded-full bg-gradient-to-r from-peachy-300 to-blossom-300
+                         px-3 py-2 font-display text-xs font-bold text-white shadow-cute lg:hidden"
+            >
+              ＋ New Goal
+            </motion.button>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -515,7 +548,7 @@ export default function Home() {
 
       {/* Phone-sized primary action: always reachable without scrolling back up. */}
       <AnimatePresence>
-        {!showForm && (
+        {!showForm && showFloatingNewGoal && (
           <motion.button
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -523,10 +556,10 @@ export default function Home() {
             whileTap={{ scale: 0.96 }}
             type="button"
             onClick={() => setShowForm(true)}
-            className="fixed right-4 z-40 rounded-full bg-gradient-to-r
+            className="fixed bottom-4 right-4 z-40 rounded-full bg-gradient-to-r
                        from-peachy-300 to-blossom-300 px-5 py-3 font-display
-                       text-sm font-bold text-white shadow-cute lg:hidden
-                       bottom-[calc(env(safe-area-inset-bottom)+1rem)]"
+                       text-sm font-bold text-white shadow-cute lg:hidden"
+            style={{ bottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
           >
             ＋ New Goal
           </motion.button>

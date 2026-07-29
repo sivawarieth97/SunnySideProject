@@ -20,14 +20,17 @@ export default function CategoryCard({ title, emoji, gradient, imageSrc, href, o
   const thumb = (
     <div className={`group relative flex h-20 w-full items-end overflow-hidden rounded-2xl shadow-cute
                       sm:h-28 sm:rounded-cute
-                      transition duration-300
-                      ${onClick || href ? 'cursor-pointer hover:-translate-y-1 hover:shadow-lg' : ''}
+                      transition duration-300 will-change-transform
+                      ${onClick || href
+                        ? 'cursor-pointer touch-manipulation hover:-translate-y-1 hover:shadow-lg active:scale-[0.97] active:shadow-sm'
+                        : ''}
                       ${imageSrc ? '' : `bg-gradient-to-br ${gradient}`}`}
     >
       {imageSrc && (
         <Image
           src={imageSrc} alt={title} fill
-          className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          className="object-cover transition-transform duration-500 ease-out
+                     group-hover:scale-105 group-active:scale-105"
         />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/0 to-transparent" />
@@ -47,7 +50,7 @@ export default function CategoryCard({ title, emoji, gradient, imageSrc, href, o
       {href ? (
         <Link href={href}>{thumb}</Link>
       ) : onClick ? (
-        <button onClick={onClick} className="block w-full text-left">{thumb}</button>
+        <button onClick={onClick} className="block w-full touch-manipulation text-left">{thumb}</button>
       ) : (
         thumb
       )}

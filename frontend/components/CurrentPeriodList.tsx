@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import type { Goal, GoalLevel } from '@/types'
 import { periodDateRange } from '@/lib/period'
 
@@ -128,54 +129,46 @@ function CurrentGoalRow({
           className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-peachy-300"
         />
 
-        <span
-          className={`min-w-0 flex-1 break-words text-sm font-semibold leading-snug
-                      ${done
-                        ? 'text-[#5b3a2e]/45 line-through decoration-2 decoration-peachy-300'
-                        : 'text-[#5b3a2e]'}`}
-        >
-          {goal.isRecurring ? '↻ ' : ''}{goal.title}
-        </span>
-
         <button
           type="button"
           onClick={() => setShowDescription(value => !value)}
           aria-expanded={showDescription}
-          aria-label={`${showDescription ? 'Hide' : 'Show'} description for ${goal.title}`}
-          title="View description"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/80
-                     bg-white/60 text-xs font-bold text-peachy-400 shadow-sm transition
-                     hover:bg-white hover:text-blossom-400"
+          aria-label={`${showDescription ? 'Hide' : 'Show'} details for ${goal.title}`}
+          className="flex min-w-0 flex-1 items-start gap-2 text-left"
         >
-          ⓘ
-        </button>
-        <button
-          type="button"
-          onClick={beginEditing}
-          aria-label={`Edit ${goal.title}`}
-          title="Edit task"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/80
-                     bg-white/60 text-sm font-bold text-peachy-400 shadow-sm transition
-                     hover:bg-white hover:text-blossom-400"
-        >
-          ✎
+          <span
+            className={`min-w-0 flex-1 break-words text-sm font-semibold leading-snug
+                        ${done
+                          ? 'text-[#5b3a2e]/45 line-through decoration-2 decoration-peachy-300'
+                          : 'text-[#5b3a2e]'}`}
+          >
+            {goal.isRecurring ? '↻ ' : ''}{goal.title}
+          </span>
+          <span
+            aria-hidden="true"
+            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full
+                        bg-white/60 text-xs font-bold text-peachy-400 transition-transform
+                        ${showDescription ? 'rotate-180' : ''}`}
+          >
+            ⌄
+          </span>
         </button>
       </div>
 
       {showDescription && !editing && (
-        <div className="ml-6 mt-2 border-t border-white/70 pt-2">
+        <div className="ml-7 mt-2 border-t border-white/70 pt-2">
           <p className="whitespace-pre-wrap text-xs font-semibold leading-relaxed text-[#5b3a2e]/65">
             {goal.description || 'No description yet.'}
           </p>
-          {!goal.description && (
-            <button
-              type="button"
-              onClick={beginEditing}
-              className="mt-1 text-xs font-bold text-peachy-400 hover:text-blossom-400"
-            >
-              + Add description
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={beginEditing}
+            className="mt-2 rounded-full border border-peachy-100 bg-white/70 px-3 py-1
+                       text-xs font-bold text-peachy-400 transition hover:border-peachy-200
+                       hover:bg-white active:scale-95"
+          >
+            ✎ {goal.description ? 'Edit task' : 'Add details'}
+          </button>
         </div>
       )}
 
@@ -185,7 +178,7 @@ function CurrentGoalRow({
           onKeyDown={event => {
             if (event.key === 'Escape') cancelEditing()
           }}
-          className="ml-6 mt-2 space-y-2 border-t border-white/70 pt-2"
+          className="ml-7 mt-2 space-y-2 border-t border-white/70 pt-2"
         >
           <label className="block">
             <span className="sr-only">Task title</span>
@@ -249,11 +242,19 @@ export default function CurrentPeriodList({
   const styles = levelStyles[level]
   const completed = items.filter(goal => isDone(goal, period)).length
   const dateRange = periodDateRange(period, level)
+  const [collapsed, setCollapsed] = useState(false)
 
   return (
     <section className={`rounded-cute border p-3.5 shadow-sm backdrop-blur ${styles.card}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <button
+        type="button"
+        onClick={() => setCollapsed(value => !value)}
+        aria-expanded={!collapsed}
+        aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${title} goals`}
+        className="flex w-full items-center justify-between gap-3 rounded-2xl text-left
+                   transition active:scale-[0.99]"
+      >
+        <span className="flex min-w-0 items-center gap-2.5">
           <span
             aria-hidden="true"
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full
@@ -261,35 +262,58 @@ export default function CurrentPeriodList({
           >
             {emoji}
           </span>
-          <div className="min-w-0">
-            <h3 className="font-display text-base font-extrabold leading-tight text-peachy-400">
+          <span className="min-w-0">
+            <span className="block font-display text-base font-extrabold leading-tight text-peachy-400">
               {title}
-            </h3>
-            <p className="text-xs font-semibold text-[#5b3a2e]/45">{subtitle}</p>
-            <p className="mt-0.5 text-[11px] font-bold tabular-nums text-[#5b3a2e]/40">
+            </span>
+            <span className="block text-xs font-semibold text-[#5b3a2e]/45">{subtitle}</span>
+            <span className="mt-0.5 block text-[11px] font-bold tabular-nums text-[#5b3a2e]/40">
               📅 {dateRange}
-            </p>
-          </div>
-        </div>
-        <span className="shrink-0 rounded-full bg-white/70 px-2.5 py-1 text-xs font-bold text-[#5b3a2e]/45">
-          {completed}/{items.length}
+            </span>
+          </span>
         </span>
-      </div>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <span className="rounded-full bg-white/70 px-2.5 py-1 text-xs font-bold text-[#5b3a2e]/45">
+            {completed}/{items.length}
+          </span>
+          <span
+            aria-hidden="true"
+            className={`flex h-7 w-7 items-center justify-center rounded-full bg-white/70
+                        text-sm font-extrabold text-peachy-400 shadow-sm transition-transform
+                        ${collapsed ? '' : 'rotate-180'}`}
+          >
+            ⌄
+          </span>
+        </span>
+      </button>
 
-      <ul className="mt-3 space-y-1.5">
-        {items.map(goal => (
-          <CurrentGoalRow
-            key={goal.id}
-            goal={goal}
-            period={period}
-            busy={busyId === goal.id}
-            done={isDone(goal, period)}
-            rowStyle={styles.row}
-            onToggle={onToggle}
-            onUpdate={onUpdate}
-          />
-        ))}
-      </ul>
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            key="goals"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            <ul className="mt-3 space-y-1.5">
+              {items.map(goal => (
+                <CurrentGoalRow
+                  key={goal.id}
+                  goal={goal}
+                  period={period}
+                  busy={busyId === goal.id}
+                  done={isDone(goal, period)}
+                  rowStyle={styles.row}
+                  onToggle={onToggle}
+                  onUpdate={onUpdate}
+                />
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   )
 }
