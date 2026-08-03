@@ -34,7 +34,7 @@ const CURRENT_GROUPS: Array<{
 
 export default function Home() {
   const router = useRouter()
-  const { goals: allGoals, loaded, error } = useGoals()
+  const { goals: allGoals, loaded, error, waking } = useGoals()
   const [showForm, setShowForm]         = useState(false)
   const [activeLevel, setActiveLevel]   = useState('ALL')
   const [query, setQuery]               = useState('')
@@ -483,6 +483,12 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {waking && !error && (
+        <p className="text-sm font-semibold text-peachy-400">
+          ☁️ Waking up the server — this can take up to a minute after being idle…
+        </p>
+      )}
 
       {error && <p className="text-sm font-semibold text-blossom-400">{error}</p>}
 

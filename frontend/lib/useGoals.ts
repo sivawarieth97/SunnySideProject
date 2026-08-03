@@ -15,9 +15,10 @@ type GoalsState = {
   goals: Goal[]
   loaded: boolean
   error: string
+  waking: boolean
 }
 
-let state: GoalsState = { goals: [], loaded: false, error: '' }
+let state: GoalsState = { goals: [], loaded: false, error: '', waking: false }
 const listeners = new Set<() => void>()
 let inflight: Promise<void> | null = null
 
@@ -25,26 +26,51 @@ function emit() {
   listeners.forEach(l => l())
 }
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+// Render's free tier spins the backend down after ~15min idle, so the first
+// request after a while away hits a cold container — it can take 30-60s to
+// come back up, and the very first attempt often fails outright (connection
+// refused) rather than just being slow. Retrying with backoff here covers
+// that automatically, so the person doesn't have to manually reopen the app
+// 2-3 times themselves.
+const RETRY_DELAYS_MS = [2000, 4000, 8000, 15000, 15000, 15000] // ~59s total
+
 export async function refreshGoals(): Promise<void> {
   if (typeof window === 'undefined') return
   if (!inflight) {
     inflight = (async () => {
+      let attempt = 0
       try {
-        const res = await fetch('/api/goals', { headers: authHeaders() })
-        if (!res.ok) {
-          state = {
-            ...state,
-            loaded: true,
-            error: res.status === 401
-                ? 'UNAUTHORIZED'
-                : 'Could not load goals.',
+        while (true) {
+          try {
+            const res = await fetch('/api/goals', { headers: authHeaders() })
+            if (res.status === 401) {
+              state = { ...state, loaded: true, error: 'UNAUTHORIZED', waking: false }
+              return
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            const data = await res.json()
+            state = { goals: data.goals ?? [], loaded: true, error: '', waking: false }
+            return
+          } catch {
+            if (attempt >= RETRY_DELAYS_MS.length) {
+              state = {
+                ...state,
+                loaded: true,
+                waking: false,
+                error: 'Could not load goals. The server may be asleep — tap ↻ Refresh to try again.',
+              }
+              return
+            }
+            // Show a friendly "waking up" state instead of a scary error
+            // while the backend cold-starts, and keep retrying quietly.
+            state = { ...state, waking: true }
+            emit()
+            await sleep(RETRY_DELAYS_MS[attempt])
+            attempt += 1
           }
-          return
         }
-        const data = await res.json()
-        state = { goals: data.goals ?? [], loaded: true, error: '' }
-      } catch {
-        state = { ...state, loaded: true, error: 'Could not load goals. Is the backend running?' }
       } finally {
         inflight = null
         emit()
@@ -65,7 +91,7 @@ function subscribe(cb: () => void) {
   return () => { listeners.delete(cb) }
 }
 const getSnapshot = () => state
-const serverSnapshot: GoalsState = { goals: [], loaded: false, error: '' }
+const serverSnapshot: GoalsState = { goals: [], loaded: false, error: '', waking: false }
 const getServerSnapshot = () => serverSnapshot
 
 export function useGoals(): GoalsState {

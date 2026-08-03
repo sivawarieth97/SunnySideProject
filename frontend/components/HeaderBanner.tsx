@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { authHeaders } from '@/lib/auth'
 import { notifyGoalsChanged } from '@/lib/goalEvents'
+import { refreshGoals } from '@/lib/useGoals'
 import { rolloverBreakdown, type RolloverSummary } from '@/lib/rollover'
 
 // Full banner art on the home page (and auth pages, where there's little
@@ -20,6 +21,28 @@ export default function HeaderBanner() {
   const full = isHomePage || isAuthPage
   const [rollingOver, setRollingOver] = useState(false)
   const [rolloverFeedback, setRolloverFeedback] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshFeedback, setRefreshFeedback] = useState('')
+
+  // Manual "hard refresh" — mainly for when the Render backend has spun
+  // down after being idle and the automatic retry (in useGoals) is either
+  // still working through it or gave up. This re-triggers the same fetch
+  // + retry logic on demand instead of making the person close and reopen
+  // the app a few times.
+  async function handleHardRefresh() {
+    setRefreshing(true)
+    setRefreshFeedback('Waking server…')
+    try {
+      await refreshGoals()
+      notifyGoalsChanged()
+      setRefreshFeedback('✓ Refreshed')
+    } catch {
+      setRefreshFeedback('Try again')
+    } finally {
+      setRefreshing(false)
+      window.setTimeout(() => setRefreshFeedback(''), 3000)
+    }
+  }
 
   async function handleRollover() {
     setRollingOver(true)
@@ -69,6 +92,16 @@ export default function HeaderBanner() {
                    text-white/90 backdrop-blur transition hover:bg-black/40 sm:px-3 sm:text-xs"
       >
         Logout
+      </button>
+      <button
+        onClick={handleHardRefresh}
+        disabled={refreshing}
+        title="Reload your data — use this if the app looks empty after being closed a while"
+        className="rounded-full border border-white/50 bg-black/25 px-2.5 py-1 text-[11px] font-bold
+                   text-white/90 backdrop-blur transition hover:bg-black/40 disabled:opacity-60
+                   sm:px-3 sm:text-xs"
+      >
+        {refreshing ? '↻ Waking…' : refreshFeedback || '↻ Refresh'}
       </button>
       <button
         onClick={handleRollover}
